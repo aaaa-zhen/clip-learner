@@ -2,6 +2,7 @@ import type { Handle } from '@sveltejs/kit';
 import fs from 'fs';
 import path from 'path';
 import { query } from '$lib/server/db';
+import { runStartupTasks } from '$lib/server/startup';
 
 // Make Node.js fetch use the system proxy (needed locally behind a proxy/VPN)
 // EnvHttpProxyAgent respects NO_PROXY, so local base_url endpoints stay direct
@@ -11,6 +12,11 @@ if (proxy) {
 	const { EnvHttpProxyAgent, setGlobalDispatcher } = await import('undici');
 	setGlobalDispatcher(new EnvHttpProxyAgent());
 }
+
+// One-time server boot tasks: clean up orphaned in-flight episodes (PM2
+// restarts etc.) and log warnings if yt-dlp/ffmpeg/Whisper aren't set up.
+// runStartupTasks() is idempotent so running it at module scope is safe.
+runStartupTasks().catch((err) => console.error('[startup] unhandled:', err));
 
 export const handle: Handle = async ({ event, resolve }) => {
 	// Session validation

@@ -20,6 +20,9 @@
 		let pendingResumeTime = $state<number | null>(null);
 		let resumeApplied = $state(false);
 
+	// Current segment index — used by A/S/D keyboard jumping. The dedicated
+	// paused-line panel in +page.svelte computes its own pausedSegment from
+	// the same store, so this component no longer needs an activeSegment.
 	const currentSegmentIndex = $derived.by(() => {
 		if (segments.length === 0) return -1;
 		for (let i = 0; i < segments.length; i++) {
@@ -32,8 +35,6 @@
 		}
 		return -1;
 	});
-
-		const activeSegment = $derived(currentSegmentIndex >= 0 ? segments[currentSegmentIndex] : null);
 
 		function applyResumePosition() {
 			if (!player?.seekTo || resumeApplied || pendingResumeTime == null || pendingResumeTime <= 5) return;
