@@ -1,12 +1,30 @@
 <script lang="ts">
 	import '../app.css';
 	import { authModalOpen } from '$lib/stores/auth';
+	import { onMount } from 'svelte';
 
 	let { children, data } = $props();
 
 	let authTab = $state<'login' | 'signup'>('login');
 	let authError = $state('');
 	let authLoading = $state(false);
+
+	// Flash message when the session expired mid-use. Fades after 5s
+	// and also cleans `?signed_out=1` out of the URL so a reload doesn't
+	// re-trigger the toast.
+	let expiredToast = $state(false);
+	onMount(() => {
+		if (!data.sessionExpired) return;
+		expiredToast = true;
+		// Drop the query param so this doesn't loop on refresh.
+		try {
+			const url = new URL(window.location.href);
+			url.searchParams.delete('signed_out');
+			history.replaceState(history.state, '', url.toString());
+		} catch {}
+		const t = setTimeout(() => { expiredToast = false; }, 5000);
+		return () => clearTimeout(t);
+	});
 
 	async function handleAuth(e: SubmitEvent) {
 		e.preventDefault();
@@ -43,6 +61,18 @@
 </svelte:head>
 
 {@render children()}
+
+{#if expiredToast}
+	<div class="session-toast" role="status" aria-live="polite">
+		<span>You were signed out. Please sign in again.</span>
+		<button
+			type="button"
+			class="session-toast-close"
+			onclick={() => (expiredToast = false)}
+			aria-label="Dismiss"
+		>×</button>
+	</div>
+{/if}
 
 {#if $authModalOpen}
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -198,4 +228,39 @@
 	}
 	.auth-btn:hover:not(:disabled) { background: var(--accent-hover); }
 	.auth-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+	.session-toast {
+		position: fixed;
+		top: 20px;
+		left: 50%;
+		transform: translateX(-50%);
+		z-index: 600;
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		padding: 10px 12px 10px 16px;
+		background: var(--bg-card);
+		border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+		border-radius: var(--radius-sm);
+		box-shadow: 0 8px 28px rgba(0,0,0,0.18);
+		font-size: 13.5px;
+		color: var(--text);
+		animation: slideDown 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+	}
+	@keyframes slideDown {
+		from { transform: translate(-50%, -12px); opacity: 0; }
+		to   { transform: translate(-50%, 0);      opacity: 1; }
+	}
+	.session-toast-close {
+		width: 24px;
+		height: 24px;
+		border-radius: 4px;
+		border: none;
+		background: none;
+		color: var(--text-muted);
+		font-size: 18px;
+		line-height: 1;
+		cursor: pointer;
+	}
+	.session-toast-close:hover { background: var(--bg-dark); color: var(--text); }
 </style>

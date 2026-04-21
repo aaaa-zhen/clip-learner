@@ -15,6 +15,7 @@ if (proxy) {
 export const handle: Handle = async ({ event, resolve }) => {
 	// Session validation
 	event.locals.user = null;
+	let sessionExpired = false;
 	const sessionId = event.cookies.get('clip_session');
 
 	if (sessionId) {
@@ -28,11 +29,14 @@ export const handle: Handle = async ({ event, resolve }) => {
 			if (rows.length > 0) {
 				event.locals.user = { id: rows[0].id as number, username: rows[0].username as string };
 			} else {
-				// Session expired or invalid — clear cookie
+				// Session expired or invalid — clear cookie and flag it so the
+				// UI can tell the user instead of silently redirecting to `/`.
 				event.cookies.delete('clip_session', { path: '/' });
+				sessionExpired = true;
 			}
 		} catch {
 			event.cookies.delete('clip_session', { path: '/' });
+			sessionExpired = true;
 		}
 	}
 
@@ -40,6 +44,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 	const protectedApiRoutes = [
 		'/api/debug',
 		'/api/download',
+		'/api/episode',
 		'/api/explain',
 		'/api/logout',
 		'/api/notebook',
@@ -53,14 +58,21 @@ export const handle: Handle = async ({ event, resolve }) => {
 	const isProtectedPage = protectedPagePrefixes.some((prefix) => currentPath.startsWith(prefix));
 
 	if (isProtectedApi && !event.locals.user) {
-		return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+		const body = sessionExpired
+			? { error: 'Session expired', code: 'SESSION_EXPIRED' }
+			: { error: 'Unauthorized' };
+		return new Response(JSON.stringify(body), {
 			status: 401,
 			headers: { 'Content-Type': 'application/json' }
 		});
 	}
 
 	if (isProtectedPage && !event.locals.user) {
-		return Response.redirect(new URL('/', event.url), 303);
+		// Surface "you were signed out" via a query param so the landing page
+		// can show a flash message instead of the redirect looking random.
+		const target = new URL('/', event.url);
+		if (sessionExpired) target.searchParams.set('signed_out', '1');
+		return Response.redirect(target, 303);
 	}
 
 	// Serve media files (downloaded videos) only for the owning user

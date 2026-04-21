@@ -6,6 +6,7 @@
 	import { invalidateAll } from '$app/navigation';
 	import { onDestroy, onMount, tick } from 'svelte';
 	import { isPlaying, currentTime } from '$lib/stores/player';
+	import { loadResumePosition } from '$lib/utils/resume';
 	import { Download, BookOpen, HelpCircle, X, ArrowLeft, CheckCircle } from 'lucide-svelte';
 
 	let { data } = $props();
@@ -209,11 +210,17 @@
 
 	async function refreshEpisodeState() {
 		try {
-			const res = await fetch('/api/process', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ url: data.episode.url })
-			});
+			// Read-only status check. Previously this POSTed to /api/process,
+			// which would re-trigger analysis on page refresh if the episode was
+			// in `analyzing` or `error` state — resetting progress every reload.
+			const res = await fetch(`/api/episode/${data.episode.id}/status`);
+			if (res.status === 401) {
+				// Session expired while polling. Stop and let the layout show
+				// the sign-in prompt on next navigation.
+				clearProcessPolling();
+				return;
+			}
+			if (!res.ok) return;
 			const result = await res.json();
 			if (result.status) {
 				episodeStatus = result.status;
@@ -292,6 +299,15 @@
 	});
 
 	onMount(() => {
+		// Pre-populate currentTime from the saved resume position so the
+		// "paused line" panel shows the correct segment immediately after
+		// refresh, instead of flickering to segment 0 until the YouTube
+		// iframe fires onReady (which can take 1–2 seconds).
+		const saved = loadResumePosition(data.episode.id);
+		if (saved && saved > 0) {
+			currentTime.set(saved);
+		}
+
 		if (episodeStatus !== 'ready') {
 			startProcessPolling();
 		}
@@ -320,6 +336,10 @@
 	onDestroy(() => {
 		clearDownloadPolling();
 		clearProcessPolling();
+		// Reset shared player stores so navigating to another episode
+		// doesn't briefly show the previous episode's timestamp/caption.
+		currentTime.set(0);
+		isPlaying.set(false);
 	});
 
 	function handleSeek(time: number) {
