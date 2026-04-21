@@ -1,15 +1,13 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { query } from '$lib/server/db';
+import { getJob } from '$lib/server/jobs';
 
 /**
- * Lightweight status poll for an episode.
+ * Lightweight read-only status poll for an episode.
  *
- * Replaces the old pattern of POSTing to /api/process for status checks,
- * which had the nasty side-effect of re-triggering analysis when the
- * episode was in the `analyzing` or `error` state (e.g. on page refresh).
- *
- * This endpoint is read-only: it only reports the current status.
+ * Returns DB status (source of truth) plus an in-memory progress snapshot
+ * for ongoing work so the UI can show "elapsed 0:42 · estimated ~2:30" etc.
  */
 export const GET: RequestHandler = async ({ params, locals }) => {
 	if (!locals.user) {
@@ -17,7 +15,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 	}
 
 	const { rows: [episode] } = await query(
-		'SELECT id, status, error_message FROM episodes WHERE id = $1 AND user_id = $2',
+		'SELECT id, status, error_message, duration FROM episodes WHERE id = $1 AND user_id = $2',
 		[params.id, locals.user.id]
 	);
 
@@ -25,9 +23,22 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 		return json({ error: 'Episode not found' }, { status: 404 });
 	}
 
+	const job = getJob(params.id);
+	const now = Date.now();
+
 	return json({
 		id: episode.id,
 		status: episode.status,
-		errorMessage: episode.error_message ?? null
+		errorMessage: episode.error_message ?? null,
+		durationSeconds: episode.duration ? Number(episode.duration) : null,
+		progress: job
+			? {
+					stage: job.stage,
+					elapsedSeconds: Math.max(0, Math.floor((now - job.startedAt) / 1000)),
+					stageElapsedSeconds: Math.max(0, Math.floor((now - job.stageStartedAt) / 1000)),
+					estimateSeconds: job.estimateSeconds,
+					videoDurationSeconds: job.videoDurationSeconds
+				}
+			: null
 	});
 };

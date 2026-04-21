@@ -4,8 +4,8 @@
 	let { open = $bindable(false) } = $props();
 
 	let apiKey = $state('');
-	let baseUrl = $state('https://www.packyapi.com');
-	let model = $state('gemini-3-flash-preview');
+	let baseUrl = $state('https://aihubmix.com');
+	let model = $state('gpt-5.4-nano');
 	let showApiKey = $state(false);
 	let saving = $state(false);
 	let saved = $state(false);
@@ -74,7 +74,7 @@
 								{#if showApiKey}<EyeOff size={15} />{:else}<Eye size={15} />{/if}
 							</button>
 						</div>
-						<span class="hint">Your packyapi.com API key</span>
+						<span class="hint">Your LLM provider API key (AIHubMix, OpenAI, etc.)</span>
 					</div>
 
 					<div class="field">

@@ -7,7 +7,16 @@ export interface Episode {
 	duration: number | null;
 	video_path: string | null;
 	subs_path: string | null;
-	status: 'pending' | 'downloading' | 'analyzing' | 'ready' | 'error';
+	// `downloading` is a legacy name kept for rows created before the
+	// Whisper swap; new episodes use `fetching_audio` + `transcribing`.
+	status:
+		| 'pending'
+		| 'fetching_audio'
+		| 'downloading'
+		| 'transcribing'
+		| 'analyzing'
+		| 'ready'
+		| 'error';
 	error_message: string | null;
 	created_at: string;
 	studied_at: string | null;

@@ -19,6 +19,28 @@
 	let downloading = $state(false);
 	let downloaded = $state(false);
 	let episodeStatus = $state('');
+	let episodeError = $state('');
+
+	// Progress info from /api/episode/[id]/status. The poll runs every 3s,
+	// but we tick a client-side counter every second so elapsed time feels
+	// live rather than jumpy.
+	let progressStage = $state<string | null>(null);
+	let progressElapsed = $state(0);
+	let progressEstimate = $state<number | null>(null);
+	let videoDurationSec = $state<number | null>(null);
+	let elapsedLastSyncedAt = 0;
+	let elapsedTicker: ReturnType<typeof setInterval> | null = null;
+	let retryPending = $state(false);
+
+	const isProcessing = $derived(
+		episodeStatus === 'fetching_audio' ||
+			episodeStatus === 'transcribing' ||
+			episodeStatus === 'analyzing' ||
+			episodeStatus === 'downloading' || // legacy value, still safe
+			episodeStatus === 'pending'
+	);
+	const isErrored = $derived(episodeStatus === 'error');
+	const isReady = $derived(episodeStatus === 'ready');
 
 	// Overlay state
 	let notebookOpen = $state(false);
@@ -66,6 +88,7 @@
 
 	$effect(() => {
 		episodeStatus = data.episode.status;
+		episodeError = data.episode.error_message || '';
 		if (data.episode.video_path) {
 			videoPath = data.episode.video_path;
 			downloaded = true;
@@ -222,11 +245,23 @@
 			}
 			if (!res.ok) return;
 			const result = await res.json();
-			if (result.status) {
-				episodeStatus = result.status;
+			if (result.status) episodeStatus = result.status;
+			if (result.errorMessage) episodeError = result.errorMessage;
+			if (result.durationSeconds) videoDurationSec = result.durationSeconds;
+			if (result.progress) {
+				progressStage = result.progress.stage;
+				progressElapsed = result.progress.elapsedSeconds;
+				progressEstimate = result.progress.estimateSeconds;
+				if (result.progress.videoDurationSeconds) {
+					videoDurationSec = result.progress.videoDurationSeconds;
+				}
+				elapsedLastSyncedAt = Date.now();
+			} else if (result.status === 'ready' || result.status === 'error') {
+				progressStage = null;
 			}
 			if (result.status === 'ready') {
 				clearProcessPolling();
+				stopElapsedTicker();
 				await invalidateAll();
 			}
 		} catch {}
@@ -234,9 +269,86 @@
 
 	function startProcessPolling() {
 		if (processPollInterval || episodeStatus === 'ready') return;
+		// Fire an immediate poll so the UI doesn't sit blank for 3s on load.
+		void refreshEpisodeState();
 		processPollInterval = setInterval(async () => {
 			await refreshEpisodeState();
 		}, 3000);
+		startElapsedTicker();
+	}
+
+	function startElapsedTicker() {
+		if (elapsedTicker) return;
+		elapsedTicker = setInterval(() => {
+			if (!elapsedLastSyncedAt) return;
+			// Advance client-side counter between polls so the timer ticks
+			// every second instead of jumping every 3s.
+			const drift = Math.floor((Date.now() - elapsedLastSyncedAt) / 1000);
+			if (drift > 0) {
+				progressElapsed = progressElapsed + drift;
+				elapsedLastSyncedAt = Date.now();
+			}
+		}, 1000);
+	}
+
+	function stopElapsedTicker() {
+		if (elapsedTicker) {
+			clearInterval(elapsedTicker);
+			elapsedTicker = null;
+		}
+	}
+
+	function formatDuration(s: number | null | undefined) {
+		if (s == null || !Number.isFinite(s) || s < 0) return '--:--';
+		const total = Math.round(s);
+		const mm = Math.floor(total / 60);
+		const ss = total % 60;
+		return `${mm}:${String(ss).padStart(2, '0')}`;
+	}
+
+	function stageLabel(stage: string | null | undefined, fallback: string) {
+		switch (stage || fallback) {
+			case 'queued':
+			case 'pending':
+				return 'Queued…';
+			case 'fetching_audio':
+			case 'downloading':
+				return 'Fetching audio…';
+			case 'transcribing':
+				return 'Transcribing with Whisper…';
+			case 'analyzing':
+				return 'Analyzing with LLM…';
+			case 'ready':
+				return 'Ready';
+			case 'error':
+				return 'Failed';
+			default:
+				return (stage || fallback || '…').replace(/_/g, ' ');
+		}
+	}
+
+	async function retryEpisode() {
+		if (retryPending) return;
+		retryPending = true;
+		episodeError = '';
+		try {
+			const res = await fetch('/api/process', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ url: data.episode.url })
+			});
+			const result = await res.json();
+			if (res.status === 401) return;
+			if (result.status) episodeStatus = result.status;
+			progressStage = 'queued';
+			progressElapsed = 0;
+			elapsedLastSyncedAt = Date.now();
+			startProcessPolling();
+		} catch {
+			/* ignore */
+		} finally {
+			retryPending = false;
+		}
 	}
 
 	function getActiveDialogElement() {
@@ -302,13 +414,15 @@
 		// Pre-populate currentTime from the saved resume position so the
 		// "paused line" panel shows the correct segment immediately after
 		// refresh, instead of flickering to segment 0 until the YouTube
-		// iframe fires onReady (which can take 1–2 seconds).
-		const saved = loadResumePosition(data.episode.id);
+		// iframe fires onReady (which can take 1–2 seconds). Key must match
+		// what YouTubePlayer writes — which is the YouTube video_id.
+		const resumeKey = data.episode.video_id || data.episode.id;
+		const saved = loadResumePosition(resumeKey);
 		if (saved && saved > 0) {
 			currentTime.set(saved);
 		}
 
-		if (episodeStatus !== 'ready') {
+		if (episodeStatus !== 'ready' && episodeStatus !== 'error') {
 			startProcessPolling();
 		}
 
@@ -336,6 +450,7 @@
 	onDestroy(() => {
 		clearDownloadPolling();
 		clearProcessPolling();
+		stopElapsedTicker();
 		// Reset shared player stores so navigating to another episode
 		// doesn't briefly show the previous episode's timestamp/caption.
 		currentTime.set(0);
@@ -421,15 +536,67 @@
 	<div class="stage">
 			<div class="stage-inner">
 				<div class="video-shell">
-					{#if hasLocalVideo}
-						<VideoPlayer bind:this={videoPlayer} src={videoPath} segments={data.segments} />
+					{#if isReady}
+						{#if hasLocalVideo}
+							<VideoPlayer bind:this={videoPlayer} src={videoPath} segments={data.segments} />
+						{:else}
+							<YouTubePlayer
+								bind:this={videoPlayer}
+								videoId={data.episode.video_id || data.episode.id}
+								segments={data.segments}
+							/>
+						{/if}
+					{:else if isErrored}
+						<div class="processing-panel error">
+							<div class="processing-kicker">Processing failed</div>
+							<h2 class="processing-title">Couldn't process this video</h2>
+							<p class="processing-sub">{episodeError || 'An unknown error occurred.'}</p>
+							<div class="processing-actions">
+								<button
+									type="button"
+									class="retry-btn"
+									onclick={retryEpisode}
+									disabled={retryPending}
+								>
+									{retryPending ? 'Retrying…' : 'Try again'}
+								</button>
+								<a href="/" class="retry-link">← Back to clips</a>
+							</div>
+						</div>
 					{:else}
-						<YouTubePlayer bind:this={videoPlayer} videoId={data.episode.id} segments={data.segments} />
+						<div class="processing-panel">
+							<div class="processing-spinner" aria-hidden="true"></div>
+							<div class="processing-kicker">{stageLabel(progressStage, episodeStatus)}</div>
+							<div class="processing-meta">
+								<span class="processing-meta-item">
+									<span class="processing-meta-label">Elapsed</span>
+									<strong>{formatDuration(progressElapsed)}</strong>
+								</span>
+								{#if progressEstimate}
+									<span class="processing-meta-dot">·</span>
+									<span class="processing-meta-item">
+										<span class="processing-meta-label">Estimated total</span>
+										<strong>~{formatDuration(progressEstimate)}</strong>
+									</span>
+								{/if}
+								{#if videoDurationSec}
+									<span class="processing-meta-dot">·</span>
+									<span class="processing-meta-item">
+										<span class="processing-meta-label">Video length</span>
+										<strong>{formatDuration(videoDurationSec)}</strong>
+									</span>
+								{/if}
+							</div>
+							<p class="processing-sub">
+								This runs in the background. You can leave this tab — we'll be here
+								when you come back.
+							</p>
+						</div>
 					{/if}
 			</div>
 
 				<div class="paused-slot">
-					{#if pausedSegment}
+					{#if isReady && pausedSegment}
 						<div class="paused-line transcript">
 							<p class="paused-text">{pausedSegment.text}</p>
 						</div>
@@ -689,50 +856,34 @@
 		background: var(--bg);
 		display: flex;
 		flex-direction: column;
+		/* Vertically center the content when it's shorter than the viewport —
+		 * turns the dead space below the video into symmetric padding above
+		 * and below. On small screens there's not enough room to center so
+		 * this naturally falls back to top-aligned. */
+		justify-content: center;
 	}
 
-	/* Narrow / medium: single column */
+	/* Centered single-column layout that scales fluidly across screen
+	 * sizes. max-width grows with the viewport up to 1100px on wide
+	 * monitors so the video isn't a tiny island in a sea of whitespace;
+	 * on mobile it fills the screen with compact padding.
+	 * Horizontal padding uses clamp() so margins feel right at any width
+	 * without adding breakpoints. */
 	.stage-inner {
 		width: 100%;
-		max-width: 900px;
+		max-width: clamp(600px, 78vw, 1280px);
 		margin: 0 auto;
-		padding: 24px 24px 32px;
+		padding: clamp(16px, 2.4vw, 32px) clamp(16px, 3vw, 32px) clamp(24px, 3vw, 48px);
 		display: flex;
 		flex-direction: column;
-		gap: 16px;
+		gap: clamp(12px, 1.5vw, 20px);
 	}
 
-	/* Wide screens (≥1280px): video + paused line side by side */
-	@media (min-width: 1280px) {
-		.stage { align-items: stretch; }
+	/* Below 600px the clamp() min would force overflow, so drop back to
+	 * full-width on phones. */
+	@media (max-width: 600px) {
 		.stage-inner {
 			max-width: 100%;
-			padding: 28px 40px;
-			display: grid;
-			grid-template-columns: 1fr 360px;
-			grid-template-rows: 1fr;
-			gap: 28px;
-			align-items: start;
-			height: 100%;
-			box-sizing: border-box;
-		}
-		.video-shell {
-			/* Video fills the left column perfectly */
-			width: 100%;
-		}
-		.paused-slot {
-			margin-top: 0 !important;
-			min-height: unset !important;
-			align-self: start;
-		}
-	}
-
-	/* Very wide screens (≥1600px): wider side panel */
-	@media (min-width: 1600px) {
-		.stage-inner {
-			grid-template-columns: 1fr 440px;
-			padding: 32px 56px;
-			gap: 36px;
 		}
 	}
 
@@ -744,17 +895,124 @@
 	.video-shell :global(video),
 	.video-shell :global(iframe) { width: 100%; display: block; }
 
-	.paused-slot {
-		min-height: 80px;
-		margin-top: 4px;
+	.processing-panel {
+		aspect-ratio: 16 / 9;
+		width: 100%;
+		background: var(--bg-card);
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		text-align: center;
+		padding: 28px 32px;
+		gap: 16px;
 	}
+	.processing-panel.error {
+		background: color-mix(in srgb, var(--red) 6%, var(--bg-card));
+	}
+	.processing-spinner {
+		width: 36px;
+		height: 36px;
+		border-radius: 50%;
+		border: 3px solid var(--border);
+		border-top-color: var(--accent);
+		animation: spin 0.85s linear infinite;
+	}
+	.processing-kicker {
+		font-size: 12px;
+		font-weight: 600;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: var(--accent);
+	}
+	.processing-panel.error .processing-kicker {
+		color: var(--red);
+	}
+	.processing-title {
+		font-size: 20px;
+		font-weight: 600;
+		letter-spacing: -0.01em;
+		color: var(--text);
+		margin: 0;
+	}
+	.processing-meta {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: center;
+		align-items: baseline;
+		gap: 12px;
+		color: var(--text-light);
+		font-size: 13px;
+	}
+	.processing-meta-item {
+		display: inline-flex;
+		align-items: baseline;
+		gap: 6px;
+	}
+	.processing-meta-label {
+		font-size: 11px;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--text-light);
+	}
+	.processing-meta strong {
+		color: var(--text);
+		font-variant-numeric: tabular-nums;
+		font-weight: 600;
+		font-size: 15px;
+	}
+	.processing-meta-dot {
+		color: var(--text-light);
+		opacity: 0.5;
+	}
+	.processing-sub {
+		font-size: 13px;
+		color: var(--text-muted);
+		max-width: 46ch;
+		margin: 0;
+		line-height: 1.6;
+	}
+	.processing-actions {
+		display: flex;
+		gap: 14px;
+		align-items: center;
+	}
+	.retry-btn {
+		padding: 9px 18px;
+		background: var(--accent);
+		color: white;
+		border: none;
+		border-radius: var(--radius-sm);
+		font-size: 13px;
+		font-weight: 600;
+		cursor: pointer;
+		transition: background 0.15s, opacity 0.15s;
+	}
+	.retry-btn:hover:not(:disabled) { background: var(--accent-hover); }
+	.retry-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+	.retry-link {
+		font-size: 13px;
+		color: var(--text-muted);
+		text-decoration: none;
+	}
+	.retry-link:hover { color: var(--text); }
 
+	.paused-slot {
+		/* Reserve a fixed-ish height regardless of whether a caption is showing,
+		 * so the video doesn't jump up/down when the user plays/pauses. The
+		 * clamp gives a sensible range from phone to big monitor. */
+		height: clamp(88px, 9vh, 140px);
+		margin-top: 4px;
+		display: flex;
+		align-items: flex-start;
+	}
 	.paused-line {
+		width: 100%;
 		background: var(--bg-card);
 		border: 1px solid var(--border);
 		border-left: 3px solid var(--accent);
 		border-radius: var(--radius-sm);
-		padding: 16px 20px;
+		padding: clamp(14px, 1.6vw, 22px) clamp(18px, 2vw, 28px);
 		animation: fadeSlideIn 0.18s ease-out;
 	}
 	@keyframes fadeSlideIn {
@@ -762,19 +1020,14 @@
 		to   { opacity: 1; transform: translateY(0); }
 	}
 	.paused-text {
-		font-size: 20px;
-		line-height: 1.65;
+		font-size: clamp(17px, 1.5vw, 22px);
+		line-height: 1.6;
 		color: var(--text);
 		margin: 0;
 		font-family: var(--font-body);
 		user-select: text;
 		cursor: text;
 		letter-spacing: -0.005em;
-	}
-
-	@media (max-width: 600px) {
-		.stage-inner { padding: 16px 16px 24px; gap: 12px; }
-		.paused-text { font-size: 17px; }
 	}
 
 		/* Backdrop */

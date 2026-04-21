@@ -49,6 +49,31 @@
 		resumePositions = nextPositions;
 	}
 
+	// Auto-refresh the list whenever any episode is still being processed,
+	// so the status chip doesn't stay stuck on "Fetching audio…" after the
+	// server has already finished. Stops polling once everything settles.
+	const PROCESSING_STATES = new Set([
+		'pending',
+		'fetching_audio',
+		'downloading',
+		'transcribing',
+		'analyzing'
+	]);
+	const anyProcessing = $derived(episodes.some((ep) => PROCESSING_STATES.has(ep.status)));
+	let listPollInterval: ReturnType<typeof setInterval> | null = null;
+
+	$effect(() => {
+		if (typeof window === 'undefined') return;
+		if (anyProcessing && !listPollInterval) {
+			listPollInterval = setInterval(() => {
+				void invalidateAll();
+			}, 4000);
+		} else if (!anyProcessing && listPollInterval) {
+			clearInterval(listPollInterval);
+			listPollInterval = null;
+		}
+	});
+
 	onMount(() => {
 		theme = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
 		refreshResumePositions();
@@ -58,6 +83,7 @@
 		return () => {
 			window.removeEventListener('focus', handleFocus);
 			document.removeEventListener('visibilitychange', handleFocus);
+			if (listPollInterval) clearInterval(listPollInterval);
 		};
 	});
 
@@ -117,7 +143,9 @@
 	function statusLabel(ep: Episode) {
 		switch (ep.status) {
 			case 'pending': return 'Queued';
-			case 'downloading': return 'Downloading…';
+			case 'fetching_audio': return 'Fetching audio…';
+			case 'downloading': return 'Fetching audio…'; // legacy rows
+			case 'transcribing': return 'Transcribing…';
 			case 'analyzing': return 'Analyzing…';
 			case 'ready': return 'Ready';
 			case 'error': return 'Error';
@@ -324,9 +352,19 @@
 
 <style>
 	.page {
-		max-width: 720px;
+		/* Same fluid clamp approach used on the episode page. Caps at 1100px
+		 * on wide monitors so content doesn't stretch awkwardly, but grows
+		 * from the old fixed 720px so the hero and input don't look lost on
+		 * a big external display. */
+		max-width: clamp(560px, 70vw, 1100px);
 		margin: 0 auto;
-		padding: 0 24px 80px;
+		padding: 0 clamp(16px, 3vw, 40px) 80px;
+	}
+
+	@media (max-width: 560px) {
+		.page {
+			max-width: 100%;
+		}
 	}
 
 	.sr-only {
@@ -620,6 +658,10 @@
 		position: relative;
 		z-index: 2;
 		flex-shrink: 0;
+		/* Let clicks fall through to the absolutely-positioned <a class="clip-link">
+		 * overlay behind us — otherwise the user has to aim for the padding gaps
+		 * to navigate, which feels broken. */
+		pointer-events: none;
 	}
 	.clip.disabled .clip-icon {
 		opacity: 0.5;
@@ -629,6 +671,7 @@
 		min-width: 0;
 		position: relative;
 		z-index: 2;
+		pointer-events: none;
 	}
 
 	.clip-title {

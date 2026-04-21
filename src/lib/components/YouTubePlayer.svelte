@@ -1,5 +1,5 @@
 	<script lang="ts">
-		import { currentTime, isPlaying, duration, subtitleVisible } from '$lib/stores/player';
+		import { currentTime, isPlaying, duration } from '$lib/stores/player';
 		import { clearResumePosition, loadResumePosition, saveResumePosition } from '$lib/utils/resume';
 		import { formatTime } from '$lib/utils/time';
 		import { onMount } from 'svelte';
@@ -17,8 +17,6 @@
 		let autoPause = $state(false);
 		let timeInterval: ReturnType<typeof setInterval>;
 		let maxWatchedTime = $state(0);
-		let rewindTimer: ReturnType<typeof setTimeout> | null = null;
-		let rewindSubtitle = $state(false);
 		let pendingResumeTime = $state<number | null>(null);
 		let resumeApplied = $state(false);
 
@@ -36,9 +34,6 @@
 	});
 
 		const activeSegment = $derived(currentSegmentIndex >= 0 ? segments[currentSegmentIndex] : null);
-		const showSubtitles = $derived(
-			!!activeSegment?.text && (rewindSubtitle || $subtitleVisible)
-		);
 
 		function applyResumePosition() {
 			if (!player?.seekTo || resumeApplied || pendingResumeTime == null || pendingResumeTime <= 5) return;
@@ -164,12 +159,6 @@
 			}
 		}
 
-	function triggerRewindSubtitle() {
-		rewindSubtitle = true;
-		if (rewindTimer) clearTimeout(rewindTimer);
-		rewindTimer = setTimeout(() => { rewindSubtitle = false; }, 3500);
-	}
-
 		function replayCurrentSegment() {
 			if (segments.length === 0) return;
 			const idx = currentSegmentIndex;
@@ -230,11 +219,9 @@
 	<div class="yt-player">
 		<div class="yt-embed-wrap">
 			<div bind:this={container}></div>
-			{#if showSubtitles && activeSegment?.text}
-				<div class="smart-captions" aria-live="polite">
-					<p>{activeSegment.text}</p>
-				</div>
-		{/if}
+			<!-- The in-video caption overlay was removed because the dedicated
+			     paused-line panel below the video now serves the same purpose
+			     without overlapping the picture. -->
 	</div>
 	<div class="yt-bar">
 		<span class="yt-time">{formatTime($currentTime)} / {formatTime($duration)}</span>
@@ -273,32 +260,6 @@
 		width: 100%;
 		height: 100%;
 		display: block;
-	}
-
-		.smart-captions {
-			position: absolute;
-			left: 50%;
-			bottom: 20px;
-			transform: translateX(-50%);
-		width: min(84%, 760px);
-		display: flex;
-		justify-content: center;
-		pointer-events: none;
-		z-index: 2;
-	}
-
-	.smart-captions p {
-		margin: 0;
-		padding: 10px 14px;
-		border-radius: 10px;
-		background: rgba(0, 0, 0, 0.82);
-		color: white;
-		font-family: var(--font-ui);
-		font-size: 18px;
-		font-weight: 600;
-		line-height: 1.45;
-		text-align: center;
-		box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
 	}
 
 	.yt-bar {
@@ -373,14 +334,5 @@
 			padding: 6px 10px;
 		}
 
-		.smart-captions {
-			width: calc(100% - 24px);
-			bottom: 12px;
-		}
-
-		.smart-captions p {
-			font-size: 15px;
-			padding: 8px 12px;
-		}
 	}
 </style>
