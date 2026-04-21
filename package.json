@@ -28,6 +28,7 @@
 		"isomorphic-dompurify": "^3.6.0",
 		"lucide-svelte": "^0.577.0",
 		"marked": "^17.0.5",
-		"openai": "^6.34.0"
+		"openai": "^6.34.0",
+		"undici": "^7.0.0"
 	}
 }

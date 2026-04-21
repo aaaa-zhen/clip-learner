@@ -30,62 +30,39 @@ export async function getVideoInfo(url: string): Promise<{ title: string; durati
 }
 
 export async function downloadSubtitlesOnly(videoId: string, _url: string): Promise<{ subsText: string }> {
-	// Fetch YouTube page with consent cookie to get captions
-	const pageRes = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
-		headers: {
-			'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-			'Accept-Language': 'en-US,en;q=0.9',
-			'Cookie': 'CONSENT=YES+cb'
-		}
-	});
+	const { execFile } = await import('child_process');
+	const { promisify } = await import('util');
+	const { mkdtempSync, readFileSync, readdirSync, rmSync } = await import('fs');
+	const { tmpdir } = await import('os');
+	const { join } = await import('path');
+	const execFileAsync = promisify(execFile);
 
-	if (!pageRes.ok) throw new Error('Failed to fetch YouTube page');
-	const html = await pageRes.text();
+	const tmpDir = mkdtempSync(join(tmpdir(), 'subs-'));
 
-	if (!html.includes('"captions"') || !html.includes('playerCaptionsTracklistRenderer')) {
-		throw new Error('No captions available for this video. Try a video with subtitles/auto-captions enabled.');
-	}
-
-	const startIdx = html.indexOf('"captions":') + '"captions":'.length;
-	let depth = 0;
-	let endIdx = startIdx;
-	for (let i = startIdx; i < html.length; i++) {
-		if (html[i] === '{') depth++;
-		if (html[i] === '}') depth--;
-		if (depth === 0) { endIdx = i + 1; break; }
-	}
-
-	let captionsData: any;
 	try {
-		captionsData = JSON.parse(html.slice(startIdx, endIdx));
-	} catch {
-		throw new Error('Failed to parse captions data from YouTube page');
+		// Try manual English subs first, then auto-generated
+		for (const args of [
+			['--skip-download', '--write-subs', '--sub-lang', 'en', '--sub-format', 'srv3', '-o', join(tmpDir, 'subs'), `https://www.youtube.com/watch?v=${videoId}`],
+			['--skip-download', '--write-auto-subs', '--sub-lang', 'en,en-GB,en-US,en-en-GB', '--sub-format', 'srv3', '-o', join(tmpDir, 'subs'), `https://www.youtube.com/watch?v=${videoId}`],
+		]) {
+			try {
+				await execFileAsync('yt-dlp', args, { timeout: 30000 });
+			} catch { /* ignore errors, check if file was written */ }
+
+			const files = readdirSync(tmpDir).filter(f => f.endsWith('.srv3'));
+			for (const file of files) {
+				const xml = readFileSync(join(tmpDir, file), 'utf-8');
+				const srtText = xmlToSrt(xml);
+				if (srtText.trim()) return { subsText: srtText };
+				// parsed empty — delete and try next format
+				rmSync(join(tmpDir, file));
+			}
+		}
+
+		throw new Error('No captions available for this video. Try a video with subtitles/auto-captions enabled.');
+	} finally {
+		rmSync(tmpDir, { recursive: true, force: true });
 	}
-
-	const tracks = captionsData?.playerCaptionsTracklistRenderer?.captionTracks;
-	if (!tracks || tracks.length === 0) {
-		throw new Error('No caption tracks found');
-	}
-
-	// Prefer English manual captions, then auto-generated English, then first available
-	const enTrack = tracks.find((t: any) => t.languageCode === 'en' && t.kind !== 'asr') ||
-		tracks.find((t: any) => t.languageCode === 'en') ||
-		tracks[0];
-
-	if (!enTrack?.baseUrl) {
-		throw new Error('No usable caption track found');
-	}
-
-	const captionRes = await fetch(enTrack.baseUrl + '&fmt=srv3');
-	if (!captionRes.ok) throw new Error('Failed to fetch captions');
-	const xml = await captionRes.text();
-
-	const srtText = xmlToSrt(xml);
-	if (!srtText.trim()) {
-		throw new Error('Captions were empty after parsing');
-	}
-
-	return { subsText: srtText };
 }
 
 function xmlToSrt(xml: string): string {

@@ -3,6 +3,15 @@ import fs from 'fs';
 import path from 'path';
 import { query } from '$lib/server/db';
 
+// Make Node.js fetch use the system proxy (needed locally behind a proxy/VPN)
+// EnvHttpProxyAgent respects NO_PROXY, so local base_url endpoints stay direct
+const proxy = process.env.HTTPS_PROXY || process.env.https_proxy ||
+              process.env.HTTP_PROXY  || process.env.http_proxy;
+if (proxy) {
+	const { EnvHttpProxyAgent, setGlobalDispatcher } = await import('undici');
+	setGlobalDispatcher(new EnvHttpProxyAgent());
+}
+
 export const handle: Handle = async ({ event, resolve }) => {
 	// Session validation
 	event.locals.user = null;
