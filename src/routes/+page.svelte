@@ -86,18 +86,22 @@
 		refreshResumePositions();
 
 		// After first signup, open Settings so the user can configure their API key.
-		if (localStorage.getItem('clip-just-signed-up') && data.user) {
+		// Don't auto-submit the pending URL yet — wait until they've set up.
+		const justSignedUp = localStorage.getItem('clip-just-signed-up');
+		if (justSignedUp && data.user) {
 			localStorage.removeItem('clip-just-signed-up');
 			settingsOpen = true;
 		}
 
 		// Restore a URL the user pasted before being asked to sign in.
+		// Only fill the input — don't auto-submit if Settings needs to open first.
 		const pending = localStorage.getItem('clip-pending-url');
 		if (pending && data.user) {
 			localStorage.removeItem('clip-pending-url');
 			url = pending;
-			// Auto-submit after a tick so the UI renders first.
-			tick().then(() => handleSubmit());
+			if (!justSignedUp) {
+				tick().then(() => handleSubmit());
+			}
 		}
 
 		const handleFocus = () => refreshResumePositions();
