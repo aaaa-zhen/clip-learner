@@ -99,6 +99,8 @@ function cuesToSrt(cues: Array<{ start: number; end: number; text: string }>): s
 
 /** Path to a Netscape-format cookies.txt file for yt-dlp. */
 const YTDLP_COOKIES = env.YTDLP_COOKIES || path.join(process.cwd(), 'cookies.txt');
+/** Optional HTTP/SOCKS proxy for yt-dlp (e.g. socks5://127.0.0.1:1080). */
+const YTDLP_PROXY = env.YTDLP_PROXY || '';
 
 async function downloadAudioMp3(videoId: string, outPath: string): Promise<void> {
 	const args = [
@@ -111,6 +113,11 @@ async function downloadAudioMp3(videoId: string, outPath: string): Promise<void>
 		outPath,
 		`https://www.youtube.com/watch?v=${videoId}`
 	];
+
+	// If a proxy is configured, route yt-dlp through it to avoid IP bans.
+	if (YTDLP_PROXY) {
+		args.unshift('--proxy', YTDLP_PROXY);
+	}
 
 	// If a cookies file exists, pass it to yt-dlp to bypass YouTube bot detection.
 	try {
