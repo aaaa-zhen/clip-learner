@@ -404,11 +404,7 @@
 
 <style>
 	.page {
-		/* Same fluid clamp approach used on the episode page. Caps at 1100px
-		 * on wide monitors so content doesn't stretch awkwardly, but grows
-		 * from the old fixed 720px so the hero and input don't look lost on
-		 * a big external display. */
-		max-width: clamp(560px, 70vw, 1100px);
+		max-width: clamp(560px, 70vw, 1000px);
 		margin: 0 auto;
 		padding: 0 clamp(16px, 3vw, 40px) 80px;
 	}
@@ -436,8 +432,8 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		padding: 20px 0 0;
-		margin-bottom: 72px;
+		padding: 16px 0 0;
+		margin-bottom: 0;
 	}
 
 	.brand {
@@ -460,18 +456,18 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 6px;
-		padding: 7px 12px;
-		border-radius: var(--radius-sm);
+		padding: 7px 14px;
+		border-radius: var(--radius-pill);
 		border: 1px solid var(--border);
-		font-size: 13px;
+		font-size: 12px;
 		color: var(--text-muted);
-		background: var(--bg-card);
+		background: transparent;
 		transition: border-color 0.15s, color 0.15s;
 		position: relative;
 	}
 	.nav-link:hover {
 		color: var(--text);
-		border-color: var(--text-light);
+		border-color: #333;
 		text-decoration: none;
 	}
 
@@ -496,14 +492,14 @@
 		justify-content: center;
 		width: 34px;
 		height: 34px;
-		border-radius: var(--radius-sm);
+		border-radius: 50%;
 		border: 1px solid var(--border);
-		background: var(--bg-card);
+		background: transparent;
 		color: var(--text-muted);
 		transition: border-color 0.15s, color 0.15s;
 	}
 	.theme-toggle:hover {
-		border-color: var(--text-light);
+		border-color: #333;
 		color: var(--text);
 	}
 	.theme-toggle:focus-visible {
@@ -514,104 +510,119 @@
 	.user-chip {
 		display: inline-flex;
 		align-items: center;
-		padding: 5px 11px;
-		border-radius: var(--radius-sm);
+		gap: 6px;
+		padding: 7px 14px;
+		border-radius: var(--radius-pill);
 		border: 1px solid var(--border);
-		background: var(--bg-card);
-		font-size: 12.5px;
+		background: transparent;
+		font-size: 12px;
 		font-weight: 500;
 		color: var(--text-muted);
 		cursor: pointer;
-		transition: color 0.12s, border-color 0.12s;
+		transition: color 0.15s, border-color 0.15s;
 	}
 	.user-chip:hover {
 		color: var(--red);
-		border-color: color-mix(in srgb, var(--red) 40%, var(--border));
+		border-color: rgba(199, 69, 69, 0.4);
 	}
 
 	.features {
 		display: flex;
-		gap: 24px;
-		margin-top: 32px;
-		margin-bottom: 8px;
+		gap: 16px;
+		margin: 32px 0 40px;
+		justify-content: center;
 	}
 	.feature {
-		display: flex;
-		align-items: flex-start;
-		gap: 10px;
-		font-size: 13.5px;
-		color: var(--text);
+		flex: 1;
+		max-width: 220px;
+		padding: 18px;
+		border-radius: 14px;
+		border: 1px solid var(--border);
+		background: var(--bg-card);
+		text-align: left;
 	}
 	.feature-icon {
-		flex-shrink: 0;
-		margin-top: 2px;
+		width: 32px;
+		height: 32px;
+		border-radius: 8px;
+		border: 1px solid var(--border);
+		background: var(--bg-subtle);
+		display: flex;
+		align-items: center;
+		justify-content: center;
 		color: var(--accent);
+		margin-bottom: 12px;
 	}
 	.feature strong {
 		display: block;
 		font-weight: 600;
-		font-size: 13.5px;
-		margin-bottom: 2px;
+		font-size: 13px;
+		margin-bottom: 4px;
 	}
 	.feature-desc {
 		display: block;
-		font-size: 12.5px;
-		color: var(--text-muted);
-		line-height: 1.4;
+		font-size: 12px;
+		color: var(--text-light);
+		line-height: 1.5;
 	}
 
 	.signin-btn {
 		display: inline-flex;
 		align-items: center;
-		padding: 6px 14px;
-		border-radius: var(--radius-sm);
+		padding: 7px 16px;
+		border-radius: var(--radius-pill);
+		border: 1px solid var(--accent);
 		background: var(--accent);
-		color: white;
-		font-size: 12.5px;
+		color: #000;
+		font-size: 12px;
 		font-weight: 600;
 		cursor: pointer;
-		transition: background 0.15s;
+		transition: all 0.15s;
 	}
-	.signin-btn:hover { background: var(--accent-hover); }
+	.signin-btn:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
 
 	/* Hero */
 	.hero {
-		margin-top: clamp(48px, 10vh, 120px);
-		margin-bottom: 56px;
+		margin-top: clamp(60px, 12vh, 140px);
+		margin-bottom: 48px;
+		text-align: center;
 	}
 
 	.hero h1 {
 		font-family: var(--font-display);
-		font-size: 48px;
+		font-size: 52px;
 		line-height: 1.08;
-		letter-spacing: -0.025em;
-		font-weight: 400;
-		margin-bottom: 16px;
+		letter-spacing: -0.03em;
+		font-weight: 700;
+		margin-bottom: 18px;
 		text-wrap: balance;
 	}
 	.hero h1 em {
-		color: var(--accent);
 		font-style: italic;
+		background: linear-gradient(135deg, var(--accent), #e8a66a);
+		-webkit-background-clip: text;
+		-webkit-text-fill-color: transparent;
 	}
 
 	.lede {
-		font-size: 16px;
+		font-size: 15px;
 		color: var(--text-muted);
-		max-width: 560px;
+		max-width: 480px;
+		margin: 0 auto 28px;
 		line-height: 1.7;
-		margin-bottom: 28px;
 	}
 
 	/* Input box */
 	.input-box {
 		background: var(--bg-card);
 		border: 1px solid var(--border);
-		border-radius: var(--radius-lg);
+		border-radius: 14px;
 		overflow: hidden;
-		transition: border-color 0.15s;
+		transition: border-color 0.3s, box-shadow 0.3s;
 	}
 	.input-box:focus-within {
-		border-color: var(--text-light);
+		border-color: rgba(212, 133, 74, 0.4);
+		box-shadow: 0 0 0 3px rgba(212, 133, 74, 0.08), 0 0 20px rgba(212, 133, 74, 0.06);
 	}
 
 	.input-row {
@@ -645,11 +656,11 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 6px;
-		padding: 10px 18px;
-		border-radius: var(--radius-md);
+		padding: 10px 20px;
+		border-radius: 10px;
 		background: var(--accent);
-		color: white;
-		font-size: 14px;
+		color: #000;
+		font-size: 13px;
 		font-weight: 600;
 		border: none;
 		transition: background 0.15s, opacity 0.15s;
@@ -682,26 +693,29 @@
 		display: flex;
 		align-items: center;
 		gap: 10px;
-		padding-bottom: 12px;
-		border-bottom: 1px solid var(--border);
-		margin-bottom: 4px;
+		margin-bottom: 14px;
+	}
+	.section-header::after {
+		content: '';
+		flex: 1;
+		height: 1px;
+		background: var(--border-light);
 	}
 
 	.section-header h2 {
-		font-size: 12px;
-		font-weight: 600;
-		letter-spacing: 0.08em;
+		font-size: 10px;
+		font-weight: 500;
+		letter-spacing: 0.12em;
 		text-transform: uppercase;
 		color: var(--text-light);
 	}
 
 	.section-count {
-		font-size: 11px;
+		font-size: 10px;
 		color: var(--text-light);
-		background: var(--bg-dark);
 		border: 1px solid var(--border);
 		border-radius: var(--radius-pill);
-		padding: 1px 7px;
+		padding: 2px 8px;
 		font-variant-numeric: tabular-nums;
 	}
 
@@ -713,22 +727,24 @@
 
 	.clip {
 		display: grid;
-		grid-template-columns: 32px 1fr auto;
-		gap: 12px;
+		grid-template-columns: 36px 1fr auto;
+		gap: 14px;
 		align-items: center;
-		padding: 14px 10px;
-		border-bottom: 1px solid var(--border-light);
-		border-radius: var(--radius-sm);
+		padding: 14px 18px;
+		border: 1px solid var(--border-light);
+		border-radius: 12px;
+		background: var(--bg-card);
 		cursor: pointer;
-		transition: background 0.12s;
+		transition: border-color 0.2s, background 0.2s;
 		position: relative;
-		margin: 0 -10px;
+		margin-bottom: 8px;
 	}
 	.clip:last-child {
-		border-bottom: none;
+		margin-bottom: 0;
 	}
 	.clip:hover {
-		background: var(--bg-dark);
+		border-color: var(--border);
+		background: var(--bg-subtle);
 	}
 	.clip.disabled {
 		cursor: default;
@@ -749,6 +765,11 @@
 	}
 
 	.clip-icon {
+		width: 36px;
+		height: 36px;
+		border-radius: 50%;
+		border: 1px solid var(--border);
+		background: var(--bg-subtle);
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -756,9 +777,6 @@
 		position: relative;
 		z-index: 2;
 		flex-shrink: 0;
-		/* Let clicks fall through to the absolutely-positioned <a class="clip-link">
-		 * overlay behind us — otherwise the user has to aim for the padding gaps
-		 * to navigate, which feels broken. */
 		pointer-events: none;
 	}
 	.clip.disabled .clip-icon {
@@ -773,7 +791,7 @@
 	}
 
 	.clip-title {
-		font-size: 15px;
+		font-size: 14px;
 		font-weight: 500;
 		color: var(--text);
 		letter-spacing: -0.005em;
@@ -781,7 +799,7 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
-		margin-bottom: 4px;
+		margin-bottom: 3px;
 	}
 
 	.clip-meta {
@@ -827,20 +845,16 @@
 		gap: 4px;
 		font-size: 11px;
 		font-weight: 500;
-		color: var(--text-muted);
-		padding: 5px 10px;
-		border-radius: var(--radius-sm);
+		color: var(--accent);
+		padding: 5px 12px;
+		border-radius: var(--radius-pill);
 		border: 1px solid var(--border);
-		background: var(--bg-dark);
+		background: transparent;
 		white-space: nowrap;
-		transition: background 0.12s, color 0.12s, border-color 0.12s;
-		opacity: 0;
+		transition: all 0.15s;
 	}
 	.clip:hover .resume-btn {
-		opacity: 1;
-		background: var(--accent);
-		color: white;
-		border-color: var(--accent);
+		border-color: rgba(212, 133, 74, 0.4);
 	}
 	.resume-btn:hover {
 		text-decoration: none;
