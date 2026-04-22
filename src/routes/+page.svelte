@@ -523,7 +523,8 @@
 
 	/* Hero */
 	.hero {
-		margin-bottom: 48px;
+		margin-top: clamp(48px, 10vh, 120px);
+		margin-bottom: 56px;
 	}
 
 	.hero h1 {
