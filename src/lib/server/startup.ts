@@ -110,9 +110,18 @@ let started = false;
  * Idempotent startup. Safe to call from multiple places — only runs once per
  * process lifetime.
  */
+async function cleanupExpiredSessions(): Promise<void> {
+	try {
+		await query("DELETE FROM sessions WHERE expires_at <= datetime('now')");
+	} catch (err) {
+		console.error('[startup] Session cleanup failed:', err);
+	}
+}
+
 export async function runStartupTasks(): Promise<void> {
 	if (started) return;
 	started = true;
 	await cleanupOrphanEpisodes();
+	await cleanupExpiredSessions();
 	await checkEnvironment();
 }

@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { query } from '$lib/server/db';
+import { query, transaction } from '$lib/server/db';
 import { extractVideoId, getVideoInfo } from '$lib/server/ytdlp';
 import {
 	transcribeYouTubeVideo,
@@ -84,11 +84,13 @@ export const DELETE: RequestHandler = async ({ request, locals }) => {
 	if (!episode) return json({ error: 'Episode not found' }, { status: 404 });
 
 	try {
-		await query('DELETE FROM humor_annotations WHERE episode_id = $1', [id]);
-		await query('DELETE FROM scene_breakdowns WHERE episode_id = $1', [id]);
-		await query('DELETE FROM vocab_notebook WHERE episode_id = $1 AND user_id = $2', [id, userId]);
-		await query('DELETE FROM segments WHERE episode_id = $1', [id]);
-		await query('DELETE FROM episodes WHERE id = $1 AND user_id = $2', [id, userId]);
+		await transaction(async () => {
+			await query('DELETE FROM humor_annotations WHERE episode_id = $1', [id]);
+			await query('DELETE FROM scene_breakdowns WHERE episode_id = $1', [id]);
+			await query('DELETE FROM vocab_notebook WHERE episode_id = $1 AND user_id = $2', [id, userId]);
+			await query('DELETE FROM segments WHERE episode_id = $1', [id]);
+			await query('DELETE FROM episodes WHERE id = $1 AND user_id = $2', [id, userId]);
+		});
 		return json({ success: true });
 	} catch (err) {
 		const message = err instanceof Error ? err.message : 'Unknown error';

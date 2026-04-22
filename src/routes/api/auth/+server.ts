@@ -3,8 +3,15 @@ import { dev } from '$app/environment';
 import type { RequestHandler } from './$types';
 import { query } from '$lib/server/db';
 import { hashPassword, verifyPassword, createSession } from '$lib/server/auth';
+import { rateLimit } from '$lib/server/ratelimit';
 
-export const POST: RequestHandler = async ({ request, cookies }) => {
+export const POST: RequestHandler = async ({ request, cookies, getClientAddress }) => {
+	const ip = getClientAddress();
+	// 10 auth attempts per minute per IP
+	if (!rateLimit(`auth:${ip}`, 10, 60_000)) {
+		return json({ error: 'Too many attempts. Please wait a moment.' }, { status: 429 });
+	}
+
 	const body = await request.json();
 	const { action, username, password } = body;
 
@@ -37,7 +44,7 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 			httpOnly: true,
 			sameSite: 'lax',
 			maxAge: 60 * 60 * 24 * 30,
-			secure: false
+			secure: !dev
 		});
 		return json({ ok: true });
 	}
@@ -57,7 +64,7 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 			httpOnly: true,
 			sameSite: 'lax',
 			maxAge: 60 * 60 * 24 * 30,
-			secure: false
+			secure: !dev
 		});
 		return json({ ok: true });
 	}

@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { query } from '$lib/server/db';
+import { rateLimit } from '$lib/server/ratelimit';
 import {
 	generateInitialQuiz,
 	generateAdaptiveQuiz,
@@ -28,6 +29,10 @@ import {
  */
 export const POST: RequestHandler = async ({ request, locals }) => {
 	const userId = locals.user!.id;
+	// 10 quiz calls per minute per user
+	if (!rateLimit(`quiz:${userId}`, 10, 60_000)) {
+		return json({ error: 'Too many requests. Please slow down.' }, { status: 429 });
+	}
 	const body = await request.json();
 	const { episodeId, phase } = body;
 

@@ -127,6 +127,12 @@ export const handle: Handle = async ({ event, resolve }) => {
 				const parts = range.replace(/bytes=/, '').split('-');
 				const start = parseInt(parts[0], 10);
 				const end = parts[1] ? parseInt(parts[1], 10) : stat.size - 1;
+				if (!Number.isFinite(start) || !Number.isFinite(end) || start < 0 || end >= stat.size || start > end) {
+					return new Response('Range Not Satisfiable', {
+						status: 416,
+						headers: { 'Content-Range': `bytes */${stat.size}` }
+					});
+				}
 				const chunkSize = end - start + 1;
 
 				const stream = fs.createReadStream(filePath, { start, end });

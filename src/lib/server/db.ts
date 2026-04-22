@@ -147,3 +147,15 @@ export async function query(text: string, params: any[] = []) {
 	db.prepare(converted).run(...params);
 	return { rows: [] };
 }
+
+/** Run multiple statements in a single SQLite transaction. */
+export async function transaction(fn: () => Promise<void>): Promise<void> {
+	db.exec('BEGIN');
+	try {
+		await fn();
+		db.exec('COMMIT');
+	} catch (err) {
+		db.exec('ROLLBACK');
+		throw err;
+	}
+}

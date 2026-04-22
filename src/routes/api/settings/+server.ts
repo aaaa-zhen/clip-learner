@@ -4,11 +4,7 @@ import { query } from '$lib/server/db';
 
 export const GET: RequestHandler = async ({ locals }) => {
 	const userId = locals.user!.id;
-	let { rows } = await query('SELECT key, value FROM user_settings WHERE user_id = $1', [userId]);
-	if (rows.length === 0) {
-		const legacy = await query('SELECT key, value FROM app_settings');
-		rows = legacy.rows;
-	}
+	const { rows } = await query('SELECT key, value FROM user_settings WHERE user_id = $1', [userId]);
 	const settings: Record<string, string> = {};
 	for (const row of rows) {
 		// Mask the API key for security
