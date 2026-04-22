@@ -5,8 +5,7 @@ import { query } from '$lib/server/db';
 import { hashPassword, verifyPassword, createSession } from '$lib/server/auth';
 import { rateLimit } from '$lib/server/ratelimit';
 
-export const POST: RequestHandler = async ({ request, cookies, getClientAddress, url }) => {
-	const isHttps = url.protocol === 'https:';
+export const POST: RequestHandler = async ({ request, cookies, getClientAddress }) => {
 	const ip = getClientAddress();
 	// 10 auth attempts per minute per IP
 	if (!rateLimit(`auth:${ip}`, 10, 60_000)) {
@@ -45,7 +44,7 @@ export const POST: RequestHandler = async ({ request, cookies, getClientAddress,
 			httpOnly: true,
 			sameSite: 'lax',
 			maxAge: 60 * 60 * 24 * 30,
-			secure: isHttps
+			secure: false
 		});
 		return json({ ok: true });
 	}
@@ -65,7 +64,7 @@ export const POST: RequestHandler = async ({ request, cookies, getClientAddress,
 			httpOnly: true,
 			sameSite: 'lax',
 			maxAge: 60 * 60 * 24 * 30,
-			secure: isHttps
+			secure: false
 		});
 		return json({ ok: true });
 	}
