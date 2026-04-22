@@ -7,7 +7,8 @@
 	import {
 		MoonStar, SunMedium, Youtube, ArrowRight, PlayCircle,
 		Clock, CheckCircle2, Loader2, AlertCircle, Trash2,
-		BookMarked, Plus, Clapperboard, RotateCcw, Settings, LogOut
+		BookMarked, Plus, Clapperboard, RotateCcw, Settings, LogOut,
+		Headphones, MousePointerClick, BrainCircuit
 	} from 'lucide-svelte';
 	import SettingsModal from '$lib/components/SettingsModal.svelte';
 	import { authModalOpen } from '$lib/stores/auth';
@@ -269,15 +270,15 @@
 
 		<div class="features">
 			<div class="feature">
-				<span class="feature-icon">🎧</span>
+				<span class="feature-icon"><Headphones size={18} /></span>
 				<div><strong>Auto-transcribe</strong><span class="feature-desc">AI transcribes any YouTube video in seconds</span></div>
 			</div>
 			<div class="feature">
-				<span class="feature-icon">📖</span>
+				<span class="feature-icon"><MousePointerClick size={18} /></span>
 				<div><strong>Tap to learn</strong><span class="feature-desc">Click any word for instant definition + examples</span></div>
 			</div>
 			<div class="feature">
-				<span class="feature-icon">🧠</span>
+				<span class="feature-icon"><BrainCircuit size={18} /></span>
 				<div><strong>Adaptive quiz</strong><span class="feature-desc">Test yourself with AI-generated questions</span></div>
 			</div>
 		</div>
@@ -542,9 +543,9 @@
 		color: var(--text);
 	}
 	.feature-icon {
-		font-size: 18px;
 		flex-shrink: 0;
-		margin-top: 1px;
+		margin-top: 2px;
+		color: var(--accent);
 	}
 	.feature strong {
 		display: block;
