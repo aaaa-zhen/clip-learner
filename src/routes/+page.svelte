@@ -87,23 +87,15 @@
 		theme = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
 		refreshResumePositions();
 
-		// After first signup, open Settings so the user can configure their API key.
-		// Don't auto-submit the pending URL yet — wait until they've set up.
-		const justSignedUp = localStorage.getItem('clip-just-signed-up');
-		if (justSignedUp && data.user) {
-			localStorage.removeItem('clip-just-signed-up');
-			settingsOpen = true;
-		}
+		// Clean up signup flag (no longer auto-opens Settings — we prompt when they click Study)
+		localStorage.removeItem('clip-just-signed-up');
 
 		// Restore a URL the user pasted before being asked to sign in.
-		// Only fill the input — don't auto-submit if Settings needs to open first.
 		const pending = localStorage.getItem('clip-pending-url');
 		if (pending && data.user) {
 			localStorage.removeItem('clip-pending-url');
 			url = pending;
-			if (!justSignedUp) {
-				tick().then(() => handleSubmit());
-			}
+			tick().then(() => handleSubmit());
 		}
 
 		const handleFocus = () => refreshResumePositions();
@@ -129,6 +121,17 @@
 			authModalOpen.set(true);
 			return;
 		}
+		// Check if API key is configured before starting
+		try {
+			const settingsRes = await fetch('/api/settings');
+			const settings = await settingsRes.json();
+			if (!settings.api_key) {
+				error = '';
+				settingsOpen = true;
+				return;
+			}
+		} catch {}
+
 		loading = true;
 		error = '';
 		try {
