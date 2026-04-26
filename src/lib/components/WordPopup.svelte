@@ -64,7 +64,7 @@
 		// Dispatch a custom event so the video player can pause
 		window.dispatchEvent(new CustomEvent('wordpopup:open'));
 
-		const popupWidth = 280;
+		const popupWidth = Math.min(280, window.innerWidth - 24);
 
 		let px = rect.left + rect.width / 2;
 		let py = rect.top - 12;
@@ -101,7 +101,7 @@
 		subtitleVisible.set(true);
 		window.dispatchEvent(new CustomEvent('wordpopup:open'));
 
-		const popupWidth = 280;
+		const popupWidth = Math.min(280, window.innerWidth - 24);
 		let px = rect.left + rect.width / 2;
 		let py = rect.top - 12;
 		px = Math.max(popupWidth / 2 + 12, Math.min(px, window.innerWidth - popupWidth / 2 - 12));
@@ -388,7 +388,7 @@
 		position: fixed;
 		transform: translate(-50%, -100%);
 		z-index: 1000;
-		width: 240px;
+		width: min(280px, calc(100vw - 24px));
 		animation: popupIn 0.15s ease-out;
 	}
 

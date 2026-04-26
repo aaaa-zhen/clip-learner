@@ -795,7 +795,7 @@
 								/>
 							{/if}
 						</div>
-						<div class="caption-bar" class:dim={$isPlaying && !showTranscript}>
+						<div class="caption-bar" class:dim={$isPlaying && !showTranscript} onclick={() => videoPlayer?.togglePlay()} role="button" tabindex="0" aria-label={$isPlaying ? "Pause" : "Play"} onkeydown={(e) => e.key === "Enter" && videoPlayer?.togglePlay()}>
 							<div class="caption-text">
 								{#if activeSegment && (showTranscript || !$isPlaying)}
 									<p class="paused-text">{#each captionParts as part}{#if part.span}<span class="hl hl-{part.span.type}" title={part.span.type === 'phrasal_verb' ? 'Phrasal verb' : 'Collocation'}>{part.text}</span>{:else}{part.text}{/if}{/each}</p>
@@ -808,7 +808,7 @@
 									type="button"
 									class="transcript-toggle"
 									class:active={showTranscript}
-									onclick={() => showTranscript = !showTranscript}
+									onclick={(e) => { e.stopPropagation(); showTranscript = !showTranscript; }}
 								>
 									{showTranscript ? 'Off' : 'Show'}
 								</button>
@@ -1797,9 +1797,26 @@
 			header { padding: 10px 14px; gap: 10px; }
 			h1 { font-size: 13px; }
 			.icon-btn { padding: 6px 10px; font-size: 12px; }
-			.stage-inner { padding: 12px 14px 30px; }
+			.stage-inner { padding: 0 0 20px; }
 
 			.quiz-body { padding: 16px 18px; }
 			.q-question { font-size: 18px; }
+
+			/* Caption bar: tap to play/pause, bigger touch target */
+			.caption-bar {
+				min-height: 64px;
+				padding: 14px 16px;
+				cursor: pointer;
+				-webkit-tap-highlight-color: transparent;
+			}
+			.caption-bar:active { background: color-mix(in srgb, var(--accent) 6%, transparent); }
+			.paused-text { font-size: 16px; }
+			.transcript-toggle { padding: 8px 16px; font-size: 13px; min-height: 44px; }
+
+			/* Notebook drawer buttons always visible on mobile (no hover) */
+			.nb-tts { opacity: 1; }
+
+			/* Wider drawer on narrow phones */
+			.drawer { width: min(380px, 96vw); }
 		}
 	</style>

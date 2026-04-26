@@ -314,7 +314,8 @@
 			padding: 0 16px 60px;
 		}
 
-		.remove {
+		.remove,
+		.sound-btn {
 			opacity: 1;
 		}
 	}

@@ -198,7 +198,7 @@
 			saveResumePosition(videoId, nextTime);
 		}
 
-	function togglePlay() {
+	export function togglePlay() {
 		if (!player) return;
 		if ($isPlaying) player.pauseVideo();
 		else player.playVideo();

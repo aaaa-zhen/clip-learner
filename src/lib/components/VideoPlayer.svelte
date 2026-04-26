@@ -110,7 +110,7 @@
 			}
 		}
 
-	function togglePlay() {
+	export function togglePlay() {
 		if (video) {
 			if (video.paused) video.play();
 			else video.pause();
