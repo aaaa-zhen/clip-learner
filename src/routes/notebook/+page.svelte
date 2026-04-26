@@ -1,13 +1,38 @@
 <script lang="ts">
-	import { ArrowLeft, BookMarked, Trash2, BookOpen } from 'lucide-svelte';
+	import { ArrowLeft, BookMarked, Trash2, BookOpen, Volume2 } from 'lucide-svelte';
 
 	let { data } = $props();
 
 	let entries = $state<typeof data.entries>([]);
+	let ttsLoading = $state<number | null>(null);
+	let ttsAudio: HTMLAudioElement | null = null;
 
 	$effect(() => {
 		entries = data.entries;
 	});
+
+	async function playTTS(word: string, id: number) {
+		if (ttsLoading !== null) return;
+		ttsLoading = id;
+		try {
+			const res = await fetch('/api/tts', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ text: word })
+			});
+			if (!res.ok) return;
+			const blob = await res.blob();
+			const url = URL.createObjectURL(blob);
+			if (ttsAudio) { ttsAudio.pause(); URL.revokeObjectURL(ttsAudio.src); }
+			ttsAudio = new Audio(url);
+			ttsAudio.play();
+			ttsAudio.onended = () => URL.revokeObjectURL(url);
+		} catch {
+			// silently fail
+		} finally {
+			ttsLoading = null;
+		}
+	}
 
 	async function removeWord(id: number) {
 		try {
@@ -58,13 +83,24 @@
 					<div class="entry-header">
 						<strong class="word">{entry.word}</strong>
 						<span class="category">{entry.category}</span>
-						<button
-							class="remove"
-							onclick={() => removeWord(entry.id)}
-							aria-label={`Remove ${entry.word}`}
-						>
-							<Trash2 size={13} aria-hidden="true" />
-						</button>
+						<div class="entry-actions">
+							<button
+								class="sound-btn"
+								class:loading={ttsLoading === entry.id}
+								onclick={() => playTTS(entry.word, entry.id)}
+								aria-label={`Listen to ${entry.word}`}
+								title="Listen"
+							>
+								<Volume2 size={13} aria-hidden="true" />
+							</button>
+							<button
+								class="remove"
+								onclick={() => removeWord(entry.id)}
+								aria-label={`Remove ${entry.word}`}
+							>
+								<Trash2 size={13} aria-hidden="true" />
+							</button>
+						</div>
 					</div>
 					<p class="definition">{entry.definition}</p>
 					{#if entry.example}
@@ -214,8 +250,30 @@
 		border-radius: var(--radius-xs);
 	}
 
-	.remove {
+	.entry-actions {
 		margin-left: auto;
+		display: flex;
+		align-items: center;
+		gap: 2px;
+	}
+	.sound-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 28px;
+		height: 28px;
+		border-radius: var(--radius-sm);
+		color: var(--text-light);
+		background: none;
+		border: none;
+		cursor: pointer;
+		transition: background 0.12s, color 0.12s;
+		opacity: 0;
+	}
+	.entry:hover .sound-btn { opacity: 1; }
+	.sound-btn:hover { background: var(--accent-soft); color: var(--accent); }
+	.sound-btn.loading { opacity: 0.5; cursor: default; }
+	.remove {
 		display: flex;
 		align-items: center;
 		justify-content: center;
