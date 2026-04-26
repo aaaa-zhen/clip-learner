@@ -1487,7 +1487,7 @@
 		min-width: 0;
 	}
 	.paused-text {
-		font-size: 17px;
+		font-size: 19px;
 		line-height: 1.6;
 		color: var(--text);
 		margin: 0;

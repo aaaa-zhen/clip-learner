@@ -41,6 +41,8 @@
 	let toastTimer: ReturnType<typeof setTimeout> | null = null;
 	let ttsLoading = $state(false);
 	let ttsAudio: HTMLAudioElement | null = null;
+	let chinese = $state('');
+	let chineseLoading = $state(false);
 
 	let lastLookedUp = '';
 	let lookupContext = $state<LookupContext | null>(null);
@@ -50,6 +52,8 @@
 		word = w;
 		entry = {};
 		saved = savedWords.has(w.toLowerCase());
+		chinese = '';
+		chineseLoading = false;
 		visible = true;
 		loading = true;
 		lookupContext = context;
@@ -86,6 +90,8 @@
 		word = selected;
 		entry = {};
 		saved = savedWords.has(selected.toLowerCase());
+		chinese = '';
+		chineseLoading = false;
 		visible = true;
 		loading = true;
 		lookupContext = context;
@@ -149,6 +155,26 @@
 			entry = { definition: 'Could not look up this word.' };
 		} finally {
 			loading = false;
+		}
+	}
+
+	async function translate() {
+		if (chineseLoading || chinese || !entry.definition) return;
+		chineseLoading = true;
+		try {
+			const res = await fetch('/api/translate', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ word, definition: entry.definition })
+			});
+			if (res.ok) {
+				const data = await res.json();
+				chinese = data.chinese || '';
+			}
+		} catch {
+			// silently fail
+		} finally {
+			chineseLoading = false;
 		}
 	}
 
@@ -326,6 +352,13 @@
 					{#if entry.definition}
 						<p class="popup-def">{entry.definition}</p>
 					{/if}
+					{#if chinese}
+						<p class="popup-chinese">{chinese}</p>
+					{:else if entry.definition}
+						<button class="translate-btn" onclick={translate} disabled={chineseLoading}>
+							{chineseLoading ? '翻译中…' : '译'}
+						</button>
+					{/if}
 					{#if entry.example}
 						<p class="popup-example">e.g. "{entry.example}"</p>
 					{/if}
@@ -491,6 +524,29 @@
 		font-weight: 500;
 	}
 
+	.translate-btn {
+		display: inline-flex;
+		align-items: center;
+		background: var(--bg-dark);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-xs);
+		padding: 2px 8px;
+		font-size: 11px;
+		font-weight: 600;
+		color: var(--text-muted);
+		cursor: pointer;
+		margin: 2px 0 6px;
+		min-height: auto;
+		transition: border-color 0.12s, color 0.12s;
+	}
+	.translate-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+	.translate-btn:disabled { opacity: 0.5; cursor: default; }
+	.popup-chinese {
+		font-size: 13.5px;
+		color: var(--text-muted);
+		margin: 0 0 6px;
+		line-height: 1.5;
+	}
 	.popup-example {
 		font-size: 13px;
 		line-height: 1.5;
