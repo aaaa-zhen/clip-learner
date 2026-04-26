@@ -80,6 +80,54 @@
 	// Keep pausedSegment as alias so nothing else breaks
 	const pausedSegment = $derived($isPlaying ? null : activeSegment);
 
+	// Caption phrase highlighting
+	interface HighlightSpan { text: string; type: 'collocation' | 'phrasal_verb'; }
+	let captionSpans = $state<HighlightSpan[]>([]);
+	let highlightingSegmentId = $state<number | null>(null);
+
+	$effect(() => {
+		// Only highlight when paused and segment exists
+		if ($isPlaying || !activeSegment) {
+			captionSpans = [];
+			return;
+		}
+		const seg = activeSegment;
+		if (seg.id === highlightingSegmentId) return; // already fetched for this segment
+		highlightingSegmentId = seg.id;
+		captionSpans = [];
+		fetch('/api/highlight', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ text: seg.text })
+		}).then(r => r.ok ? r.json() : { spans: [] })
+		  .then(d => { if (seg.id === highlightingSegmentId) captionSpans = d.spans || []; })
+		  .catch(() => {});
+	});
+
+	// Build annotated caption parts: plain text chunks interleaved with highlight spans
+	type CaptionPart = { text: string; span?: HighlightSpan };
+	const captionParts = $derived.by((): CaptionPart[] => {
+		const text = activeSegment?.text ?? '';
+		if (!captionSpans.length) return [{ text }];
+
+		// Sort spans by position in text, deduplicate overlaps
+		const sorted = [...captionSpans]
+			.map(s => ({ ...s, idx: text.indexOf(s.text) }))
+			.filter(s => s.idx >= 0)
+			.sort((a, b) => a.idx - b.idx);
+
+		const parts: CaptionPart[] = [];
+		let cursor = 0;
+		for (const span of sorted) {
+			if (span.idx < cursor) continue; // overlap, skip
+			if (span.idx > cursor) parts.push({ text: text.slice(cursor, span.idx) });
+			parts.push({ text: span.text, span });
+			cursor = span.idx + span.text.length;
+		}
+		if (cursor < text.length) parts.push({ text: text.slice(cursor) });
+		return parts;
+	});
+
 	// Adaptive quiz state — two-phase tutor.
 	// Flow: openQuiz() fetches 3 initial questions → user answers all 3 →
 	// loadAdaptivePhase() fetches 2 follow-ups tailored to weaknesses → user
@@ -750,7 +798,7 @@
 						<div class="caption-bar" class:dim={$isPlaying && !showTranscript}>
 							<div class="caption-text">
 								{#if activeSegment && (showTranscript || !$isPlaying)}
-									<p class="paused-text">{activeSegment.text}</p>
+									<p class="paused-text">{#each captionParts as part}{#if part.span}<span class="hl hl-{part.span.type}" title={part.span.type === 'phrasal_verb' ? 'Phrasal verb' : 'Collocation'}>{part.text}</span>{:else}{part.text}{/if}{/each}</p>
 								{:else if $isPlaying && !showTranscript}
 									<p class="paused-text hint">Space to pause</p>
 								{/if}
@@ -1456,6 +1504,23 @@
 		font-size: 13px;
 		font-style: italic;
 	}
+	/* Phrase highlights in caption */
+	.hl {
+		cursor: pointer;
+		border-radius: 2px;
+		padding-bottom: 2px;
+		transition: background 0.12s;
+	}
+	.hl-phrasal_verb {
+		border-bottom: 2px solid #7c9ef5;
+		color: #a8c0ff;
+	}
+	.hl-phrasal_verb:hover { background: rgba(124, 158, 245, 0.15); }
+	.hl-collocation {
+		border-bottom: 2px solid #f5a85c;
+		color: #ffc98a;
+	}
+	.hl-collocation:hover { background: rgba(245, 168, 92, 0.15); }
 	.caption-bar.dim {
 		opacity: 0.4;
 		border-left-color: var(--border);
