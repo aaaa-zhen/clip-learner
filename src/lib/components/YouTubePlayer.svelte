@@ -226,16 +226,7 @@
 	</div>
 	<div class="yt-bar">
 		<span class="yt-time">{formatTime($currentTime)} / {formatTime($duration)}</span>
-		<div class="yt-controls">
-			<button
-				class="yt-btn"
-				class:active={autoPause}
-				onclick={() => autoPause = !autoPause}
-				title={autoPause ? 'Auto-pause ON' : 'Auto-pause OFF'}
-			>
-				{autoPause ? 'Auto-pause ON' : 'Auto-pause'}
-			</button>
-		</div>
+		<div class="yt-controls"></div>
 		<div class="yt-shortcuts">
 			<span class="shortcut-hint">A prev</span>
 			<span class="shortcut-hint">S replay</span>

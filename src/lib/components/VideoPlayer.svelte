@@ -287,19 +287,7 @@
 			</button>
 			<div class="time-row">
 				<span class="time">{formatTime($currentTime)}</span>
-				<div class="bottom-actions">
-					<button
-						class="auto-pause-btn"
-						class:active={autoPause}
-						onclick={toggleAutoPause}
-						title={autoPause ? 'Auto-pause ON (click to disable)' : 'Auto-pause OFF (click to enable)'}
-					>
-						<ListChecks size={16} strokeWidth={2.5} />
-						{#if autoPause}
-							<span class="auto-pause-badge"></span>
-						{/if}
-					</button>
-				</div>
+				<div class="bottom-actions"></div>
 				<span class="time">{formatTime($duration)}</span>
 			</div>
 		</div>

@@ -1389,7 +1389,7 @@
 		display: flex;
 		align-items: center;
 		gap: 12px;
-		padding: 14px 20px;
+		padding: 12px 20px;
 		border-left: 3px solid var(--accent);
 		min-height: 52px;
 		transition: opacity 0.2s, min-height 0.2s;
@@ -1410,6 +1410,11 @@
 		margin: 0;
 		font-family: var(--font-body);
 		user-select: text;
+		/* Limit to 2 lines so long segments don't overwhelm */
+		display: -webkit-box;
+		-webkit-line-clamp: 2;
+		-webkit-box-orient: vertical;
+		overflow: hidden;
 	}
 	.paused-text.hint {
 		color: var(--text-muted);
