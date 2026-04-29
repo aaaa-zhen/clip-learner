@@ -23,8 +23,14 @@ export const load: PageServerLoad = async ({ locals }) => {
 		[userId]
 	);
 
+	const { rows: articles } = await query(
+		'SELECT id, title, url, source, status, created_at FROM articles WHERE user_id = $1 ORDER BY created_at DESC LIMIT 20',
+		[userId]
+	);
+
 	return {
 		episodes: episodes as Episode[],
+		articles,
 		clipsStudied: Number(clips.count),
 		wordsSaved: Number(words.count),
 		jokesDecoded: Number(annotations.count)

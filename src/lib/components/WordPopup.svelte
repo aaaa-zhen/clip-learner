@@ -294,6 +294,15 @@
 			};
 		}
 
+		const caption = target.closest('.caption-bar') as HTMLElement | null;
+		if (caption) {
+			return {
+				episodeTitle,
+				source: 'transcript',
+				currentLine: caption.dataset.captionText || caption.textContent?.trim() || ''
+			};
+		}
+
 		return episodeTitle ? { episodeTitle, source: 'generic' } : null;
 	}
 
@@ -327,12 +336,12 @@
 			<div class="popup-header">
 				<span class="popup-word">{word}</span>
 				<div class="popup-header-actions">
-					<button class="tts-btn" class:loading={ttsLoading} onclick={playTTS} aria-label="Listen to pronunciation" title="Listen">
-						<Volume2 size={14} strokeWidth={2} />
-					</button>
-					<button class="popup-close" onclick={dismiss}>&times;</button>
+						<button class="tts-btn" class:loading={ttsLoading} onclick={playTTS} aria-label="Listen to pronunciation" title="Listen">
+							<Volume2 size={14} strokeWidth={2} />
+						</button>
+						<button class="popup-close" onclick={dismiss} aria-label="Close word lookup">&times;</button>
+					</div>
 				</div>
-			</div>
 			{#if entry.phonetic || entry.partOfSpeech}
 				<div class="popup-meta">
 					{#if entry.phonetic}<span class="popup-phonetic">{entry.phonetic}</span>{/if}

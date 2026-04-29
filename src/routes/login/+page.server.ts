@@ -36,7 +36,7 @@ export const actions: Actions = {
 			httpOnly: true,
 			sameSite: 'lax',
 			maxAge: 60 * 60 * 24 * 30,
-			secure: false
+			secure: !dev
 		});
 
 		throw redirect(302, '/');

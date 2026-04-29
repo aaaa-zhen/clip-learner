@@ -8,7 +8,7 @@
 		MoonStar, SunMedium, Youtube, ArrowRight, PlayCircle,
 		Clock, CheckCircle2, Loader2, AlertCircle, Trash2,
 		BookMarked, Plus, Clapperboard, RotateCcw, Settings, LogOut,
-		Headphones, MousePointerClick, BrainCircuit
+		Headphones, MousePointerClick, BrainCircuit, FileText, BookOpen, Link
 	} from 'lucide-svelte';
 	import SettingsModal from '$lib/components/SettingsModal.svelte';
 	import { authModalOpen } from '$lib/stores/auth';
@@ -27,6 +27,14 @@
 	let settingsOpen = $state(false);
 	let deleteConfirmId = $state<string | null>(null);
 	let deleteConfirmTitle = $state('');
+
+	// Article reader
+	let articleUrl = $state('');
+	let articleLoading = $state(false);
+	let articleError = $state('');
+	let articles = $state<any[]>([]);
+
+	$effect(() => { articles = data.articles || []; });
 
 	async function handleLogout() {
 		try {
@@ -178,6 +186,44 @@
 		deleteConfirmTitle = ep?.title || 'this clip';
 	}
 
+	async function handleArticleSubmit() {
+		if (!articleUrl.trim()) return;
+		if (!data.user) { authModalOpen.set(true); return; }
+		articleLoading = true;
+		articleError = '';
+		try {
+			const fetchRes = await fetch('/api/articles/fetch', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ url: articleUrl.trim() })
+			});
+			const fetched = await fetchRes.json();
+			if (!fetchRes.ok) { articleError = fetched.error || 'Could not fetch article.'; return; }
+
+			const createRes = await fetch('/api/articles', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ title: fetched.title, url: articleUrl.trim(), source: fetched.source, content: fetched.content })
+			});
+			const created = await createRes.json();
+			if (!createRes.ok) { articleError = created.error || 'Could not save article.'; return; }
+			await goto(`/articles/${created.id}`);
+		} catch {
+			articleError = 'Network error. Please try again.';
+		} finally {
+			articleLoading = false;
+		}
+	}
+
+	async function deleteArticle(id: string) {
+		await fetch('/api/articles', {
+			method: 'DELETE',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ id })
+		});
+		articles = articles.filter((a) => a.id !== id);
+	}
+
 	async function confirmDelete() {
 		const id = deleteConfirmId;
 		if (!id) return;
@@ -247,6 +293,10 @@
 		</span>
 		<div class="nav-right">
 			{#if data.user}
+				<a href="/articles/new" class="nav-link">
+					<FileText size={14} aria-hidden="true" />
+					Articles
+				</a>
 				<a href="/notebook" class="nav-link">
 					<BookMarked size={14} aria-hidden="true" />
 					Notebook
@@ -432,6 +482,69 @@
 				{/each}
 			</div>
 		</section>
+	{/if}
+
+	<!-- Article Reader section -->
+	{#if data.user}
+	<section class="article-section">
+		<div class="article-input-wrap">
+			<form class="input-box" onsubmit={(e) => { e.preventDefault(); handleArticleSubmit(); }}>
+				<div class="input-row">
+					<FileText size={18} aria-hidden="true" class="yt-icon" />
+					<input
+						bind:value={articleUrl}
+						type="url"
+						placeholder="Paste an article URL (BBC, Guardian, …)"
+						disabled={articleLoading}
+					/>
+					<button type="submit" class="submit-btn" disabled={articleLoading || !articleUrl.trim()}>
+						{#if articleLoading}
+							<Loader2 size={15} class="spin" aria-hidden="true" /> Fetching…
+						{:else}
+							<BookOpen size={15} aria-hidden="true" /> Read
+						{/if}
+					</button>
+				</div>
+			</form>
+			{#if articleError}<p class="input-error" role="alert">{articleError}</p>{/if}
+			<p class="article-hint">Or <a href="/articles/new" class="article-hint-link">paste text directly →</a></p>
+		</div>
+
+		{#if articles.length > 0}
+			<div class="section-header">
+				<h2>Recent articles</h2>
+				<span class="section-count">{articles.length}</span>
+			</div>
+			<div class="clips">
+				{#each articles as art}
+					<article class="clip">
+						<a class="clip-link" href="/articles/{art.id}" aria-label="Read: {art.title}"></a>
+						<div class="clip-icon" aria-hidden="true">
+							<FileText size={18} />
+						</div>
+						<div class="clip-body">
+							<div class="clip-title">{art.title}</div>
+							<div class="clip-meta">
+								{#if art.source}<span class="source-chip">{art.source}</span><span class="meta-sep">·</span>{/if}
+								<Clock size={11} aria-hidden="true" />
+								<span>{relativeTime(art.created_at)}</span>
+							</div>
+						</div>
+						<div class="clip-actions">
+							<button
+								type="button"
+								class="delete-btn"
+								onclick={(e) => { e.preventDefault(); e.stopPropagation(); deleteArticle(art.id); }}
+								aria-label="Remove article"
+							>
+								<Trash2 size={13} aria-hidden="true" />
+							</button>
+						</div>
+					</article>
+				{/each}
+			</div>
+		{/if}
+	</section>
 	{/if}
 
 	<footer>
@@ -781,6 +894,34 @@
 	/* Clips section */
 	.clips-section {
 		margin-top: 48px;
+	}
+
+	.article-section {
+		margin-top: 40px;
+	}
+
+	.article-input-wrap {
+		margin-bottom: 24px;
+	}
+
+	.article-hint {
+		margin: 8px 0 0;
+		font-size: 12.5px;
+		color: var(--text-muted);
+	}
+	.article-hint-link {
+		color: var(--accent);
+		text-decoration: none;
+	}
+	.article-hint-link:hover { text-decoration: underline; }
+
+	.source-chip {
+		font-size: 11px;
+		font-weight: 600;
+		color: var(--text-muted);
+		background: var(--bg-dark);
+		padding: 1px 6px;
+		border-radius: var(--radius-pill);
 	}
 
 	.section-header {

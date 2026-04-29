@@ -256,12 +256,12 @@
 	<!-- Overlay controls -->
 	<div class="overlay" class:visible={showControls || !$isPlaying}>
 		<div class="center-controls">
-			<button class="circle-btn small" onclick={() => skip(-5)} title="Back 5s">
+			<button type="button" class="circle-btn small" onclick={() => skip(-5)} title="Back 5s" aria-label="Back 5 seconds">
 				<RotateCcw size={20} strokeWidth={2.5} />
 				<span class="skip-label">5</span>
 			</button>
 
-			<button class="circle-btn large" onclick={togglePlay} title={$isPlaying ? 'Pause' : 'Play'}>
+			<button type="button" class="circle-btn large" onclick={togglePlay} title={$isPlaying ? 'Pause' : 'Play'} aria-label={$isPlaying ? 'Pause video' : 'Play video'}>
 				{#if $isPlaying}
 					<Pause size={32} strokeWidth={2.5} fill="currentColor" />
 				{:else}
@@ -269,7 +269,7 @@
 				{/if}
 			</button>
 
-			<button class="circle-btn small" onclick={() => skip(5)} title="Forward 5s">
+			<button type="button" class="circle-btn small" onclick={() => skip(5)} title="Forward 5s" aria-label="Forward 5 seconds">
 				<RotateCw size={20} strokeWidth={2.5} />
 				<span class="skip-label">5</span>
 			</button>
@@ -386,6 +386,11 @@
 
 	.circle-btn:active {
 		transform: scale(0.95);
+	}
+
+	.circle-btn:focus-visible {
+		outline: 2px solid white;
+		outline-offset: 3px;
 	}
 
 	.circle-btn.large {
@@ -540,6 +545,16 @@
 		.smart-captions p {
 			font-size: 15px;
 			padding: 8px 12px;
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.smart-captions,
+		.overlay,
+		.circle-btn,
+		.progress-fill {
+			animation: none;
+			transition: none;
 		}
 	}
 </style>

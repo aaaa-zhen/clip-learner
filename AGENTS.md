@@ -17,27 +17,34 @@ No test framework is configured.
 
 ## Requirements
 
-- Node.js + npm
-- `yt-dlp` on PATH (used for subtitle and video download)
-- `.env` with `ANTHROPIC_API_KEY` (and optionally `ANTHROPIC_BASE_URL`)
+- Node.js 22.5+ + npm (`node:sqlite` is used)
+- `yt-dlp` on PATH (used for YouTube audio/video download)
+- `ffmpeg` and `ffprobe` on PATH (used for audio conversion and duration detection)
+- Whisper transcription:
+  - preferred: `.env` with `WHISPER_API_KEY`, `WHISPER_BASE_URL`, and `WHISPER_MODEL`
+  - fallback: local `whisper` CLI on PATH
+- LLM analysis:
+  - per-user settings in the app UI, or
+  - `.env` fallback with `ANTHROPIC_API_KEY` and optionally `ANTHROPIC_BASE_URL`
 - SQLite database auto-created at `data/app.db` on first run
 
 ## Architecture
 
-**Clip Learner** is a SvelteKit app for learning English from YouTube clips. Users paste a URL; the app downloads auto-generated subtitles, analyzes them with an LLM for humor/slang/idioms, and provides an interactive study UI.
+**Clip Learner** is a SvelteKit app for learning English from YouTube clips. Users paste a URL; the app downloads audio, transcribes it with Whisper, analyzes the transcript with an LLM for humor/slang/idioms, and provides an interactive study UI.
 
 ### Data Flow
 
-1. `POST /api/process` — validates YouTube URL, creates episode record (status: `pending`), then kicks off background processing (not awaited)
-2. Background: `downloadSubtitlesOnly()` fetches YouTube page XML captions → `parseSrt()` cleans and merges into 5–10 second chunks → `processEpisode()` inserts segments → `analyzeTranscript()` calls LLM → inserts annotations/scenes/vocab → status set to `ready`
+1. `POST /api/process` — validates YouTube URL, creates episode record (status: `fetching_audio`), then kicks off background processing (not awaited)
+2. Background: `transcribeYouTubeVideo()` downloads audio with `yt-dlp` → transcribes with Whisper API or local CLI → returns SRT → `parseSrt()` cleans and merges into study chunks → `processEpisode()` inserts segments → `analyzeTranscript()` calls LLM → inserts annotations/scenes → status set to `ready`
 3. User is redirected to `/episode/[id]` which may show an "analyzing" state until ready
 
 ### Key Server Modules (`src/lib/server/`)
 
-- **`db.ts`** — SQLite via `better-sqlite3`; schema auto-initialized on first use; tables: `episodes`, `segments`, `humor_annotations`, `scene_breakdowns`, `vocab_notebook`, `app_settings`
-- **`Codex.ts`** — All LLM interactions: `analyzeTranscript()`, `explainSegment()`, `lookupWord()`, `generateQuiz()`. Uses `@anthropic-ai/sdk` but is also compatible with OpenAI-SDK-compatible endpoints via `base_url` config
-- **`ytdlp.ts`** — Wraps `yt-dlp` CLI: video metadata, subtitle download (XML→SRT conversion), optional video download
-- **`subtitles.ts`** — SRT parsing, segment merging, deduplication of auto-caption artifacts
+- **`db.ts`** — SQLite via Node's built-in `node:sqlite`; schema auto-initialized on first use; tables include `users`, `sessions`, `user_settings`, `episodes`, `segments`, `humor_annotations`, `scene_breakdowns`, `vocab_notebook`
+- **`claude.ts`** — LLM interactions: `analyzeTranscript()`, `explainSegment()`, `lookupWord()`, `generateQuiz()`. Uses the OpenAI SDK against OpenAI-compatible endpoints via `base_url` config
+- **`whisper.ts`** — Audio download and transcription pipeline: `yt-dlp` → `ffmpeg` chunking → Whisper API or local `whisper` CLI → SRT
+- **`ytdlp.ts`** — YouTube video id extraction, oEmbed metadata, and a legacy subtitle wrapper around Whisper transcription
+- **`subtitles.ts`** — SRT parsing, segment merging, deduplication of transcript artifacts
 - **`analysis.ts`** — Orchestrates the full pipeline from segments → LLM → DB
 
 ### API Routes (`src/routes/api/`)
@@ -55,7 +62,7 @@ No test framework is configured.
 
 ### LLM Configuration
 
-Settings are stored in the `app_settings` DB table (key/value). The UI's `SettingsModal.svelte` allows changing `api_key`, `base_url`, and `model`. Falls back to env vars `ANTHROPIC_API_KEY` / `ANTHROPIC_BASE_URL`.
+Settings are stored per user in the `user_settings` DB table. The UI's `SettingsModal.svelte` allows changing `api_key`, `base_url`, and `model`. Falls back to env vars `ANTHROPIC_API_KEY` / `ANTHROPIC_BASE_URL`.
 
 ### Svelte 5 Runes
 
@@ -63,7 +70,7 @@ Components use Svelte 5 runes (`$state()`, `$effect()`, `$derived()`) — not th
 
 ### Media Serving
 
-`src/hooks.server.ts` intercepts `/media/*` requests and serves files from the local `media/<youtube_id>/` directory with HTTP range request support (for video seeking). This only works on Node.js runtimes, not serverless.
+`src/hooks.server.ts` intercepts `/media/*` requests and serves files from the local `media/<episode_id>/` directory with HTTP range request support (for video seeking). Media access is restricted to the owning user. This only works on Node.js runtimes, not serverless.
 
 ### Humor Categories
 

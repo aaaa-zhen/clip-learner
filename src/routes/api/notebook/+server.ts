@@ -34,6 +34,26 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	return json({ id: row.id });
 };
 
+export const PATCH: RequestHandler = async ({ request, locals }) => {
+	const { id, confidence } = await request.json();
+
+	if (!id) {
+		return json({ error: 'id is required' }, { status: 400 });
+	}
+
+	const nextConfidence = Number(confidence);
+	if (!Number.isInteger(nextConfidence) || nextConfidence < 0 || nextConfidence > 5) {
+		return json({ error: 'confidence must be an integer from 0 to 5' }, { status: 400 });
+	}
+
+	await query(
+		"UPDATE vocab_notebook SET confidence = $1, reviewed_at = datetime('now') WHERE id = $2 AND user_id = $3",
+		[nextConfidence, id, locals.user!.id]
+	);
+
+	return json({ success: true, confidence: nextConfidence });
+};
+
 export const DELETE: RequestHandler = async ({ request, locals }) => {
 	const { id } = await request.json();
 

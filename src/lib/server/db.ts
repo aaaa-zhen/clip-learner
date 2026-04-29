@@ -125,6 +125,33 @@ function initSchema() {
 		CREATE INDEX IF NOT EXISTS idx_vocab_user    ON vocab_notebook(user_id);
 		CREATE UNIQUE INDEX IF NOT EXISTS idx_episodes_user_video ON episodes(user_id, video_id);
 	`);
+
+	// Article Reader tables
+	db.exec(`
+		CREATE TABLE IF NOT EXISTS articles (
+			id         TEXT PRIMARY KEY,
+			user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			title      TEXT NOT NULL,
+			url        TEXT,
+			source     TEXT,
+			content    TEXT NOT NULL,
+			status     TEXT DEFAULT 'pending',
+			created_at TEXT DEFAULT (datetime('now'))
+		);
+
+		CREATE TABLE IF NOT EXISTS article_annotations (
+			id          INTEGER PRIMARY KEY AUTOINCREMENT,
+			article_id  TEXT NOT NULL REFERENCES articles(id) ON DELETE CASCADE,
+			type        TEXT NOT NULL,
+			text        TEXT NOT NULL,
+			explanation TEXT,
+			start_pos   INTEGER,
+			end_pos     INTEGER
+		);
+
+		CREATE INDEX IF NOT EXISTS idx_articles_user ON articles(user_id);
+		CREATE INDEX IF NOT EXISTS idx_article_ann   ON article_annotations(article_id);
+	`);
 }
 
 // Async-compatible wrapper so the rest of the codebase doesn't need to change.

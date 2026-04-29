@@ -44,7 +44,7 @@ export const POST: RequestHandler = async ({ request, cookies, getClientAddress 
 			httpOnly: true,
 			sameSite: 'lax',
 			maxAge: 60 * 60 * 24 * 30,
-			secure: false
+			secure: !dev
 		});
 		return json({ ok: true });
 	}
@@ -64,7 +64,7 @@ export const POST: RequestHandler = async ({ request, cookies, getClientAddress 
 			httpOnly: true,
 			sameSite: 'lax',
 			maxAge: 60 * 60 * 24 * 30,
-			secure: false
+			secure: !dev
 		});
 		return json({ ok: true });
 	}

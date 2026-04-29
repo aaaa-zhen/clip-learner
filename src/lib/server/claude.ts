@@ -658,6 +658,75 @@ Reply with JSON only, one object with those 4 keys.`,
 	};
 }
 
+export interface ArticleAnnotation {
+	type: 'phrasal_verb' | 'collocation' | 'idiom' | 'news_term' | 'grammar';
+	text: string;
+	explanation: string;
+	start_pos: number;
+	end_pos: number;
+}
+
+/**
+ * Analyze an English article for language learning annotations.
+ * Finds phrasal verbs, collocations, idioms, news vocabulary, grammar points.
+ */
+export async function analyzeArticle(
+	content: string,
+	userId: number
+): Promise<ArticleAnnotation[]> {
+	// Work on first 4000 chars to keep tokens manageable
+	const excerpt = content.slice(0, 4000);
+
+	const text = await chat(
+		`You are an English language teacher helping intermediate learners read English news articles.
+
+ARTICLE TEXT:
+"""
+${excerpt}
+"""
+
+Find and annotate the most useful language learning items. Focus on:
+1. **phrasal_verb** — multi-word verbs: "carry out", "put off", "come across", "call for"
+2. **collocation** — natural word pairs/groups: "raise concerns", "strong evidence", "economic growth", "government policy"
+3. **idiom** — fixed expressions with non-literal meaning: "in the wake of", "take a toll", "at stake"
+4. **news_term** — formal/journalistic vocabulary: "amid", "spur", "unveil", "pledge", "brace for"
+5. **grammar** — confusing grammar structures worth explaining: passive voice, inversion, participle clauses
+
+Rules:
+- Only annotate items that actually appear verbatim in the text
+- Prefer items that intermediate learners (B1-B2) would find genuinely useful
+- Skip very simple or obvious items
+- For each item: provide the exact text substring, type, and a simple 1-sentence explanation
+- start_pos and end_pos are character offsets within the article text
+- Return 10–25 annotations total, prioritizing quality over quantity
+
+Return JSON only:
+{
+  "annotations": [
+    {"type": "phrasal_verb", "text": "carry out", "explanation": "To do or complete something, especially a task or plan.", "start_pos": 45, "end_pos": 54},
+    {"type": "collocation", "text": "raise concerns", "explanation": "'Raise concerns' means to mention worries about something.", "start_pos": 120, "end_pos": 134}
+  ]
+}`,
+		2000,
+		userId,
+		{ json: true }
+	);
+
+	const parsed = extractJson<{ annotations: ArticleAnnotation[] }>(text);
+	if (!parsed?.annotations) return [];
+
+	// Verify each annotation actually exists in content and has valid positions
+	return parsed.annotations.filter((a) => {
+		if (!a.text || !a.type || !a.explanation) return false;
+		const idx = content.indexOf(a.text);
+		if (idx === -1) return false;
+		// Correct positions based on actual content location
+		a.start_pos = idx;
+		a.end_pos = idx + a.text.length;
+		return true;
+	});
+}
+
 /**
  * Legacy single-call quiz entrypoint — kept for any callers still using it.
  * New flow is generateInitialQuiz + generateAdaptiveQuiz + diagnoseQuiz.

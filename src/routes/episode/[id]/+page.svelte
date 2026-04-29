@@ -4,12 +4,26 @@
 	import WordPopup from '$lib/components/WordPopup.svelte';
 	import Transcript from '$lib/components/Transcript.svelte';
 	import AnalysisPanel from '$lib/components/AnalysisPanel.svelte';
+	import type { HumorAnnotation, HumorCategory, Segment } from '$lib/types';
+	import { categoryColors, categoryLabels } from '$lib/utils/colors';
 
 	import { invalidateAll } from '$app/navigation';
 	import { onDestroy, onMount, tick } from 'svelte';
 	import { isPlaying, currentTime } from '$lib/stores/player';
 	import { loadResumePosition } from '$lib/utils/resume';
-	import { Download, BookOpen, HelpCircle, X, ArrowLeft, CheckCircle, Volume2 } from 'lucide-svelte';
+	import {
+		BookOpen,
+		Captions,
+		CheckCircle,
+		Download,
+		HelpCircle,
+		ListTree,
+		MessageCircle,
+		Repeat2,
+		Volume2,
+		X,
+		ArrowLeft
+	} from 'lucide-svelte';
 
 	let { data } = $props();
 
@@ -48,8 +62,16 @@
 	let analysisTab = $state<'explanation' | 'scenes' | 'vocab'>('explanation');
 	let focusSegmentId = $state<number | null>(null);
 
-	// Study mode: 'listening' shows only paused line, 'transcript' shows full panels
-	let showTranscript = $state(false);
+	type CaptionMode = 'listen' | 'captions' | 'study';
+	type CaptionToken = { text: string; word: boolean; span?: HighlightSpan; key: string };
+
+	const captionModes: { id: CaptionMode; label: string }[] = [
+		{ id: 'listen', label: 'Listen' },
+		{ id: 'captions', label: 'Captions' },
+		{ id: 'study', label: 'Study' }
+	];
+
+	let captionMode = $state<CaptionMode>('listen');
 
 	// Overlay state
 	let notebookOpen = $state(false);
@@ -67,47 +89,80 @@
 	let downloadPollInterval: ReturnType<typeof setInterval> | null = null;
 	let processPollInterval: ReturnType<typeof setInterval> | null = null;
 
-	// Active segment when paused — show as focused single line
-	// Always tracks the current segment (used for caption bar)
-	const activeSegment = $derived.by(() => {
+	const activeSegment = $derived.by<Segment | null>(() => {
 		const t = $currentTime;
-		for (let i = data.segments.length - 1; i >= 0; i--) {
-			if (t >= data.segments[i].start_time) return data.segments[i];
+		const graceSeconds = 1.5;
+		for (const segment of data.segments as Segment[]) {
+			if (t >= segment.start_time && t <= segment.end_time + graceSeconds) return segment;
 		}
-		return data.segments[0] ?? null;
+		return null;
 	});
 
-	// Keep pausedSegment as alias so nothing else breaks
-	const pausedSegment = $derived($isPlaying ? null : activeSegment);
+	const activeSegmentIndex = $derived.by(() => {
+		if (!activeSegment) return -1;
+		return (data.segments as Segment[]).findIndex((segment) => segment.id === activeSegment.id);
+	});
+	const previousCaptionSegment = $derived(
+		activeSegmentIndex > 0 ? (data.segments as Segment[])[activeSegmentIndex - 1] : null
+	);
+	const nextCaptionSegment = $derived(
+		activeSegmentIndex >= 0 && activeSegmentIndex < data.segments.length - 1
+			? (data.segments as Segment[])[activeSegmentIndex + 1]
+			: null
+	);
+	const showCaptionText = $derived(
+		!!activeSegment && (captionMode !== 'listen' || !$isPlaying)
+	);
+	const captionStatusText = $derived.by(() => {
+		if (activeSegment && captionMode === 'listen' && $isPlaying) return 'Pause to read this line';
+		if (!activeSegment && $isPlaying) return 'Listening…';
+		if (!activeSegment) return 'No caption at this moment';
+		return '';
+	});
 
 	// Caption phrase highlighting
 	interface HighlightSpan { text: string; type: 'collocation' | 'phrasal_verb'; }
-	let captionSpans = $state<HighlightSpan[]>([]);
-	let highlightingSegmentId = $state<number | null>(null);
+	let highlightCache = $state<Record<number, HighlightSpan[]>>({});
+	const pendingHighlightIds = new Set<number>();
+	const annotationMap = $derived(
+		(data.annotations as HumorAnnotation[]).reduce((map, ann) => {
+			const list = map.get(ann.segment_id) || [];
+			list.push(ann);
+			map.set(ann.segment_id, list);
+			return map;
+		}, new Map<number, HumorAnnotation[]>())
+	);
+	const activeAnnotations = $derived(activeSegment ? annotationMap.get(activeSegment.id) || [] : []);
 
 	$effect(() => {
-		// Only highlight when paused and segment exists
-		if ($isPlaying || !activeSegment) {
-			captionSpans = [];
-			return;
+		for (const segment of [previousCaptionSegment, activeSegment, nextCaptionSegment]) {
+			void loadCaptionHighlights(segment);
 		}
-		const seg = activeSegment;
-		if (seg.id === highlightingSegmentId) return; // already fetched for this segment
-		highlightingSegmentId = seg.id;
-		captionSpans = [];
-		fetch('/api/highlight', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ text: seg.text })
-		}).then(r => r.ok ? r.json() : { spans: [] })
-		  .then(d => { if (seg.id === highlightingSegmentId) captionSpans = d.spans || []; })
-		  .catch(() => {});
 	});
+
+	async function loadCaptionHighlights(segment: Segment | null) {
+		if (!segment || highlightCache[segment.id] || pendingHighlightIds.has(segment.id)) return;
+		pendingHighlightIds.add(segment.id);
+		try {
+			const response = await fetch('/api/highlight', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ text: segment.text })
+			});
+			const result = response.ok ? await response.json() : { spans: [] };
+			highlightCache = { ...highlightCache, [segment.id]: result.spans || [] };
+		} catch {
+			highlightCache = { ...highlightCache, [segment.id]: [] };
+		} finally {
+			pendingHighlightIds.delete(segment.id);
+		}
+	}
 
 	// Build annotated caption parts: plain text chunks interleaved with highlight spans
 	type CaptionPart = { text: string; span?: HighlightSpan };
 	const captionParts = $derived.by((): CaptionPart[] => {
 		const text = activeSegment?.text ?? '';
+		const captionSpans = activeSegment ? highlightCache[activeSegment.id] || [] : [];
 		if (!captionSpans.length) return [{ text }];
 
 		// Sort spans by position in text, deduplicate overlaps
@@ -126,6 +181,22 @@
 		}
 		if (cursor < text.length) parts.push({ text: text.slice(cursor) });
 		return parts;
+	});
+	const captionTokens = $derived.by((): CaptionToken[] => {
+		const tokens: CaptionToken[] = [];
+		let i = 0;
+		for (const part of captionParts) {
+			const pieces = part.text.match(/\s+|[^\s]+/g) || [];
+			for (const piece of pieces) {
+				tokens.push({
+					text: piece,
+					word: /\S/.test(piece),
+					span: part.span,
+					key: `${i++}-${piece}`
+				});
+			}
+		}
+		return tokens;
 	});
 
 	// Adaptive quiz state — two-phase tutor.
@@ -677,6 +748,45 @@
 		videoPlayer?.seekTo(time);
 	}
 
+	function setCaptionMode(mode: CaptionMode) {
+		captionMode = mode;
+	}
+
+	function replayActiveCaption() {
+		if (!activeSegment) return;
+		videoPlayer?.seekTo(activeSegment.start_time);
+		if (!$isPlaying) videoPlayer?.togglePlay?.();
+	}
+
+	function explainActiveCaption() {
+		if (!activeSegment) return;
+		handleExplain(activeSegment.id);
+	}
+
+	function seekCaptionSegment(segment: Segment | null) {
+		if (!segment) return;
+		videoPlayer?.seekTo(segment.start_time);
+	}
+
+	function handleCaptionTokenClick(e: MouseEvent) {
+		const target = e.target as HTMLElement | null;
+		if (!target) return;
+		const token = target.closest('.caption-word') as HTMLElement | null;
+		if (!token) return;
+
+		const range = document.createRange();
+		range.selectNodeContents(token);
+		const selection = window.getSelection();
+		selection?.removeAllRanges();
+		selection?.addRange(range);
+		token.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+	}
+
+	function annotationStyle(annotation: HumorAnnotation) {
+		const color = categoryColors[annotation.category as HumorCategory] || 'var(--accent)';
+		return `--chip-color: ${color}`;
+	}
+
 	function handleExplain(segmentId: number) {
 		const seg = data.segments.find((s: any) => s.id === segmentId);
 		// Update analysis panel to show this segment's explanation
@@ -795,26 +905,149 @@
 								/>
 							{/if}
 						</div>
-						<div class="caption-bar" class:dim={$isPlaying && !showTranscript} onclick={() => videoPlayer?.togglePlay()} role="button" tabindex="0" aria-label={$isPlaying ? "Pause" : "Play"} onkeydown={(e) => e.key === "Enter" && videoPlayer?.togglePlay()}>
-							<div class="caption-text">
-								{#if activeSegment && (showTranscript || !$isPlaying)}
-									<p class="paused-text">{#each captionParts as part}{#if part.span}<span class="hl hl-{part.span.type}" title={part.span.type === 'phrasal_verb' ? 'Phrasal verb' : 'Collocation'}>{part.text}</span>{:else}{part.text}{/if}{/each}</p>
-								{:else if $isPlaying && !showTranscript}
-									<p class="paused-text hint">Space to pause</p>
-								{/if}
-							</div>
-							{#if data.segments.length > 0}
-								<button
-									type="button"
-									class="transcript-toggle"
-									class:active={showTranscript}
-									onclick={(e) => { e.stopPropagation(); showTranscript = !showTranscript; }}
+							<div class="caption-panel" class:study-open={captionMode === 'study'}>
+								<div class="caption-toolbar">
+									<div class="caption-mode" role="group" aria-label="Caption mode">
+										{#each captionModes as mode}
+											<button
+												type="button"
+												class="caption-mode-btn"
+												class:active={captionMode === mode.id}
+												aria-pressed={captionMode === mode.id}
+												onclick={() => setCaptionMode(mode.id)}
+											>
+												{#if mode.id === 'study'}
+													<ListTree size={14} strokeWidth={2} aria-hidden="true" />
+												{:else}
+													<Captions size={14} strokeWidth={2} aria-hidden="true" />
+												{/if}
+												{mode.label}
+											</button>
+										{/each}
+									</div>
+
+									<div class="caption-actions">
+										<button
+											type="button"
+											class="caption-action"
+											onclick={replayActiveCaption}
+											disabled={!activeSegment}
+										>
+											<Repeat2 size={14} strokeWidth={2} aria-hidden="true" />
+											Replay
+										</button>
+										<button
+											type="button"
+											class="caption-action"
+											onclick={explainActiveCaption}
+											disabled={!activeSegment}
+										>
+											<MessageCircle size={14} strokeWidth={2} aria-hidden="true" />
+											Explain
+										</button>
+									</div>
+								</div>
+
+								<div
+									class="caption-bar"
+									class:dim={!showCaptionText}
+									data-caption-text={activeSegment?.text || ''}
 								>
-									{showTranscript ? 'Off' : 'Show'}
-								</button>
+									<div class="caption-text">
+										{#if showCaptionText && activeSegment}
+											<p class="paused-text">
+												{#each captionTokens as token (token.key)}
+													{#if token.word}
+														<button
+															type="button"
+															class="caption-word"
+															class:caption-highlight={!!token.span}
+															class:hl-phrasal_verb={token.span?.type === 'phrasal_verb'}
+															class:hl-collocation={token.span?.type === 'collocation'}
+															title={token.span?.type === 'phrasal_verb' ? 'Phrasal verb' : token.span?.type === 'collocation' ? 'Collocation' : 'Look up this word'}
+															onclick={handleCaptionTokenClick}
+														>{token.text}</button>
+													{:else}{token.text}{/if}
+												{/each}
+											</p>
+										{:else}
+											<p class="paused-text hint">{captionStatusText}</p>
+										{/if}
+
+										{#if showCaptionText && activeAnnotations.length > 0}
+											<div class="caption-insights" aria-label="Line annotations">
+												{#each activeAnnotations.slice(0, 3) as annotation}
+													<button
+														type="button"
+														class="caption-chip"
+														style={annotationStyle(annotation)}
+														title={annotation.explanation}
+														onclick={(e) => { e.stopPropagation(); explainActiveCaption(); }}
+													>
+														{categoryLabels[annotation.category as HumorCategory] || annotation.category.replace(/_/g, ' ')}
+													</button>
+												{/each}
+											</div>
+										{/if}
+
+										{#if captionMode === 'study' && showCaptionText}
+											<div class="caption-neighbors">
+												<button
+													type="button"
+													class="neighbor-line"
+													disabled={!previousCaptionSegment}
+													onclick={(e) => { e.stopPropagation(); seekCaptionSegment(previousCaptionSegment); }}
+												>
+													<span>Previous</span>
+													<strong>{previousCaptionSegment?.text || 'No previous line'}</strong>
+												</button>
+												<button
+													type="button"
+													class="neighbor-line"
+													disabled={!nextCaptionSegment}
+													onclick={(e) => { e.stopPropagation(); seekCaptionSegment(nextCaptionSegment); }}
+												>
+													<span>Next</span>
+													<strong>{nextCaptionSegment?.text || 'No next line'}</strong>
+												</button>
+											</div>
+										{/if}
+									</div>
+								</div>
+							</div>
+
+							{#if captionMode === 'study'}
+								<div class="study-workspace">
+									<section class="study-column">
+										<div class="study-column-head">
+											<h2>Transcript</h2>
+											<span>{data.segments.length} lines</span>
+										</div>
+										<div class="study-column-body">
+											<Transcript
+												segments={data.segments}
+												annotations={data.annotations}
+												onseek={handleSeek}
+												onexplain={handleExplain}
+											/>
+										</div>
+									</section>
+									<section class="study-column analysis-column">
+										<AnalysisPanel
+											scenes={data.scenes}
+											segments={data.segments}
+											annotations={data.annotations}
+											vocabulary={data.vocabulary}
+											explanation={explanation}
+											loadingExplanation={loadingExplanation}
+											focusSegmentId={focusSegmentId}
+											bind:activeTab={analysisTab}
+											onsaveWord={saveWord}
+										/>
+									</section>
+								</div>
 							{/if}
-						</div>
-					</div>
+							</div>
 				{:else if isErrored}
 					<div class="video-shell">
 						<div class="processing-panel error">
@@ -1336,7 +1569,7 @@
 		justify-content: center;
 		border: 2px solid var(--border);
 		background: var(--bg-dark);
-		transition: all 0.3s ease;
+			transition: border-color 0.3s ease, background-color 0.3s ease, box-shadow 0.3s ease;
 	}
 	.proc-step.done .proc-step-icon {
 		border-color: var(--green);
@@ -1461,31 +1694,96 @@
 	}
 	.retry-link:hover { color: var(--text); }
 
-	/* Content card: video + caption bar + optional transcript */
-	.content-card {
-		border: 1px solid var(--border);
-		border-radius: var(--radius-sm);
-		background: var(--bg-card);
-		overflow: hidden;
-	}
-	.caption-bar {
-		display: flex;
-		align-items: center;
-		gap: 12px;
-		padding: 12px 20px;
-		border-left: 3px solid var(--accent);
-		min-height: 52px;
-		transition: opacity 0.2s, min-height 0.2s;
-	}
-	.caption-bar.playing {
-		border-left-color: var(--border);
-		min-height: 44px;
-		opacity: 0.5;
-	}
-	.caption-text {
-		flex: 1;
-		min-width: 0;
-	}
+		/* Content card: video + caption study surface */
+		.content-card {
+			border: 1px solid var(--border);
+			border-radius: var(--radius-sm);
+			background: var(--bg-card);
+			overflow: hidden;
+		}
+		.caption-panel {
+			border-top: 1px solid var(--border);
+			background: var(--bg-card);
+		}
+		.caption-panel.study-open {
+			background: color-mix(in srgb, var(--accent) 3%, var(--bg-card));
+		}
+		.caption-toolbar {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 12px;
+			padding: 10px 16px;
+			border-bottom: 1px solid var(--border-light);
+		}
+		.caption-mode,
+		.caption-actions {
+			display: flex;
+			align-items: center;
+			gap: 6px;
+		}
+		.caption-mode {
+			padding: 3px;
+			border: 1px solid var(--border);
+			border-radius: var(--radius-sm);
+			background: var(--bg-dark);
+		}
+		.caption-mode-btn,
+		.caption-action {
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			gap: 6px;
+			min-height: 30px;
+			border-radius: calc(var(--radius-sm) - 2px);
+			color: var(--text-muted);
+			font-family: var(--font-ui);
+			font-size: 12px;
+			font-weight: 600;
+			transition: background-color 0.15s, color 0.15s, border-color 0.15s, opacity 0.15s;
+		}
+		.caption-mode-btn {
+			padding: 5px 10px;
+		}
+		.caption-mode-btn:hover,
+		.caption-action:hover:not(:disabled) {
+			color: var(--text);
+			background: var(--bg-card);
+		}
+		.caption-mode-btn.active {
+			background: var(--bg-card);
+			color: var(--accent);
+			box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+		}
+		.caption-action {
+			border: 1px solid var(--border);
+			background: var(--bg-card);
+			padding: 6px 11px;
+		}
+		.caption-action:disabled {
+			opacity: 0.45;
+			cursor: not-allowed;
+		}
+		.caption-mode-btn:focus-visible,
+		.caption-action:focus-visible,
+		.caption-chip:focus-visible,
+		.neighbor-line:focus-visible {
+			outline: 2px solid var(--accent);
+			outline-offset: 2px;
+		}
+		.caption-bar {
+			display: flex;
+			align-items: flex-start;
+			gap: 12px;
+			padding: 14px 20px 16px;
+			border-left: 3px solid var(--accent);
+			min-height: 64px;
+			transition: opacity 0.2s, background-color 0.2s;
+		}
+		.caption-text {
+			flex: 1;
+			min-width: 0;
+		}
 	.paused-text {
 		font-size: 19px;
 		line-height: 1.6;
@@ -1494,59 +1792,162 @@
 		font-family: var(--font-body);
 		user-select: text;
 		/* Limit to 2 lines so long segments don't overwhelm */
-		display: -webkit-box;
-		-webkit-line-clamp: 2;
-		-webkit-box-orient: vertical;
-		overflow: hidden;
-	}
-	.paused-text.hint {
-		color: var(--text-muted);
-		font-size: 13px;
-		font-style: italic;
-	}
-	/* Phrase highlights in caption */
-	.hl {
-		cursor: pointer;
-		border-radius: 2px;
-		padding-bottom: 2px;
-		transition: background 0.12s;
-	}
-	.hl-phrasal_verb {
-		border-bottom: 2px solid #7c9ef5;
-		color: #a8c0ff;
-	}
-	.hl-phrasal_verb:hover { background: rgba(124, 158, 245, 0.15); }
-	.hl-collocation {
-		border-bottom: 2px solid #f5a85c;
-		color: #ffc98a;
-	}
-	.hl-collocation:hover { background: rgba(245, 168, 92, 0.15); }
-	.caption-bar.dim {
-		opacity: 0.4;
-		border-left-color: var(--border);
-	}
-	.transcript-toggle {
-		padding: 5px 13px;
-		border: 1px solid var(--border);
-		border-radius: var(--radius-pill);
-		background: transparent;
-		font-family: inherit;
-		font-size: 12px;
-		font-weight: 500;
-		color: var(--text-muted);
-		cursor: pointer;
-		transition: all 0.15s;
-		flex-shrink: 0;
-	}
-	.transcript-toggle:hover {
-		border-color: var(--accent);
-		color: var(--accent);
-	}
-	.transcript-toggle.active {
-		background: color-mix(in srgb, var(--accent) 12%, var(--bg-card));
-		border-color: var(--accent);
-		color: var(--accent);
-	}
+			display: -webkit-box;
+			line-clamp: 2;
+			-webkit-line-clamp: 2;
+			-webkit-box-orient: vertical;
+			overflow: hidden;
+		}
+		.paused-text.hint {
+			color: var(--text-muted);
+			font-size: 13px;
+			font-style: italic;
+		}
+		.caption-word {
+			display: inline;
+			border: none;
+			background: none;
+			padding: 0;
+			color: inherit;
+			font: inherit;
+			cursor: pointer;
+			border-radius: 2px;
+			transition: background-color 0.12s;
+		}
+		.caption-word:hover {
+			background: color-mix(in srgb, var(--accent) 13%, transparent);
+		}
+		.caption-highlight {
+			padding: 0 1px 2px;
+			font-weight: 600;
+		}
+		.caption-highlight.hl-phrasal_verb {
+			border-bottom: 2px solid #7c9ef5;
+			color: #a8c0ff;
+		}
+		.caption-highlight.hl-phrasal_verb:hover { background: rgba(124, 158, 245, 0.15); }
+		.caption-highlight.hl-collocation {
+			border-bottom: 2px solid #f5a85c;
+			color: #ffc98a;
+		}
+		.caption-highlight.hl-collocation:hover { background: rgba(245, 168, 92, 0.15); }
+		.caption-insights {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 6px;
+			margin-top: 10px;
+		}
+		.caption-chip {
+			border: 1px solid color-mix(in srgb, var(--chip-color) 45%, var(--border));
+			border-left-width: 3px;
+			border-radius: var(--radius-pill);
+			background: color-mix(in srgb, var(--chip-color) 10%, var(--bg-card));
+			color: color-mix(in srgb, var(--chip-color) 88%, var(--text));
+			padding: 4px 9px;
+			font-size: 11px;
+			font-weight: 700;
+			letter-spacing: 0.04em;
+			text-transform: uppercase;
+			transition: background-color 0.15s, border-color 0.15s;
+		}
+		.caption-chip:hover {
+			background: color-mix(in srgb, var(--chip-color) 16%, var(--bg-card));
+		}
+		.caption-neighbors {
+			display: grid;
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+			gap: 10px;
+			margin-top: 14px;
+		}
+		.neighbor-line {
+			min-width: 0;
+			border: 1px solid var(--border);
+			border-radius: var(--radius-sm);
+			background: var(--bg-card);
+			padding: 9px 11px;
+			text-align: left;
+			transition: border-color 0.15s, background-color 0.15s, opacity 0.15s;
+		}
+		.neighbor-line:hover:not(:disabled) {
+			border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+			background: color-mix(in srgb, var(--accent) 5%, var(--bg-card));
+		}
+		.neighbor-line:disabled {
+			opacity: 0.45;
+			cursor: default;
+		}
+		.neighbor-line span {
+			display: block;
+			margin-bottom: 3px;
+			color: var(--text-light);
+			font-size: 10px;
+			font-weight: 700;
+			letter-spacing: 0.08em;
+			text-transform: uppercase;
+		}
+		.neighbor-line strong {
+			display: -webkit-box;
+			line-clamp: 1;
+			-webkit-line-clamp: 1;
+			-webkit-box-orient: vertical;
+			overflow: hidden;
+			color: var(--text-muted);
+			font-size: 13px;
+			font-weight: 500;
+			line-height: 1.45;
+		}
+		.caption-bar.dim {
+			opacity: 0.62;
+			border-left-color: var(--border);
+		}
+		.study-workspace {
+			display: grid;
+			grid-template-columns: minmax(0, 1.15fr) minmax(340px, 0.85fr);
+			height: min(58vh, 640px);
+			min-height: 420px;
+			border-top: 1px solid var(--border);
+			background: var(--bg-card);
+		}
+		.study-column {
+			min-width: 0;
+			min-height: 0;
+			display: flex;
+			flex-direction: column;
+			border-right: 1px solid var(--border);
+		}
+		.study-column.analysis-column {
+			border-right: none;
+		}
+		.study-column-head {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 12px;
+			padding: 12px 16px;
+			border-bottom: 1px solid var(--border);
+			background: var(--bg-card);
+		}
+		.study-column-head h2 {
+			margin: 0;
+			font-size: 13px;
+			font-weight: 700;
+			letter-spacing: 0.08em;
+			text-transform: uppercase;
+			color: var(--text-muted);
+		}
+		.study-column-head span {
+			color: var(--text-light);
+			font-size: 12px;
+			font-variant-numeric: tabular-nums;
+		}
+		.study-column-body {
+			flex: 1;
+			min-height: 0;
+			overflow: hidden;
+		}
+		.analysis-column :global(.panel) {
+			height: 100%;
+		}
 
 
 		/* Backdrop */
@@ -1811,7 +2212,6 @@
 			}
 			.caption-bar:active { background: color-mix(in srgb, var(--accent) 6%, transparent); }
 			.paused-text { font-size: 16px; }
-			.transcript-toggle { padding: 8px 16px; font-size: 13px; min-height: 44px; }
 
 			/* Notebook drawer buttons always visible on mobile (no hover) */
 			.nb-tts { opacity: 1; }
