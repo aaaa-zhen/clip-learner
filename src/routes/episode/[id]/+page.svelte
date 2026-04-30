@@ -1405,7 +1405,7 @@
 	 * without adding breakpoints. */
 	.stage-inner {
 		width: 100%;
-		max-width: clamp(600px, 75vw, 960px);
+		max-width: clamp(600px, 85vw, 1100px);
 		margin: 0 auto;
 		padding: clamp(8px, 1vw, 16px) clamp(16px, 2.5vw, 28px) clamp(20px, 2.5vw, 40px);
 		display: flex;
