@@ -773,12 +773,17 @@
 		const token = target.closest('.caption-word') as HTMLElement | null;
 		if (!token) return;
 
+		// If the word is inside a span-group (phrasal verb / collocation),
+		// select the entire phrase instead of just the single word.
+		const spanGroup = token.closest('.span-group') as HTMLElement | null;
+		const selectTarget = spanGroup || token;
+
 		const range = document.createRange();
-		range.selectNodeContents(token);
+		range.selectNodeContents(selectTarget);
 		const selection = window.getSelection();
 		selection?.removeAllRanges();
 		selection?.addRange(range);
-		token.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+		selectTarget.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
 	}
 
 	function annotationStyle(annotation: HumorAnnotation) {
