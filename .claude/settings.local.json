@@ -25,7 +25,10 @@
       "Bash(scp:*)",
       "Bash(git commit:*)",
       "Bash(confirm you 're not a bot\" errors on VPS IPs.:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(git pull:*)",
+      "Bash(rm src/routes/episode/[id]/quiz/+page.svelte src/routes/episode/[id]/quiz/+page.server.ts)",
+      "Bash(rmdir src/routes/episode/[id]/quiz)"
     ]
   }
 }
