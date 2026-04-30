@@ -6,8 +6,8 @@ import { env } from '$env/dynamic/private';
 
 const DEFAULTS = {
 	api_key: '',
-	base_url: 'https://aihubmix.com',
-	model: 'gpt-5.4-nano'
+	base_url: 'https://token-plan-cn.xiaomimimo.com/v1',
+	model: 'mimo-v2.5'
 };
 
 export async function getSettings(userId: number): Promise<typeof DEFAULTS> {
@@ -51,7 +51,7 @@ async function chat(
 	}
 	const client = new OpenAI({
 		apiKey: settings.api_key,
-		baseURL: settings.base_url + '/v1',
+		baseURL: settings.base_url.endsWith('/v1') ? settings.base_url : settings.base_url + '/v1',
 		timeout: 180_000
 	});
 	const body: Record<string, unknown> = {

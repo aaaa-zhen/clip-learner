@@ -5,7 +5,7 @@
 	import { formatTime } from '$lib/utils/time';
 	import { loadResumePosition } from '$lib/utils/resume';
 	import {
-		MoonStar, SunMedium, Youtube, ArrowRight, PlayCircle,
+		Youtube, ArrowRight, PlayCircle,
 		Clock, CheckCircle2, Loader2, AlertCircle, Trash2,
 		BookMarked, Plus, Clapperboard, RotateCcw, Settings, LogOut,
 		Headphones, MousePointerClick, BrainCircuit, FileText, BookOpen, Link
@@ -23,7 +23,6 @@
 	let clipsStudied = $state(0);
 	let wordsSaved = $state(0);
 	let resumePositions = $state<Record<string, number>>({});
-	let theme = $state<'light' | 'dark'>('light');
 	let settingsOpen = $state(false);
 	let deleteConfirmId = $state<string | null>(null);
 	let deleteConfirmTitle = $state('');
@@ -95,7 +94,6 @@
 	});
 
 	onMount(() => {
-		theme = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
 		refreshResumePositions();
 
 		// Clean up signup flag (no longer auto-opens Settings — we prompt when they click Study)
@@ -119,18 +117,7 @@
 		};
 	});
 
-	function toggleTheme() {
-		theme = theme === 'dark' ? 'light' : 'dark';
-		// Briefly suppress all transitions so theme switch is instant (no flash)
-		document.documentElement.style.setProperty('--theme-transition', 'none');
-		document.documentElement.dataset.theme = theme;
-		localStorage.setItem('tm-theme', theme);
-		requestAnimationFrame(() => {
-			document.documentElement.style.removeProperty('--theme-transition');
-		});
-	}
-
-	function isYouTubeUrl(u: string): boolean {
+function isYouTubeUrl(u: string): boolean {
 		return /(?:youtube\.com\/watch|youtu\.be\/|youtube\.com\/shorts\/|youtube\.com\/embed\/)/.test(u);
 	}
 
@@ -311,19 +298,7 @@
 					<Settings size={14} aria-hidden="true" />
 				</button>
 			{/if}
-			<button
-				type="button"
-				class="theme-toggle"
-				onclick={toggleTheme}
-				aria-label={theme === 'dark' ? 'Switch to day mode' : 'Switch to dark mode'}
-			>
-				{#if theme === 'dark'}
-					<SunMedium size={14} aria-hidden="true" />
-				{:else}
-					<MoonStar size={14} aria-hidden="true" />
-				{/if}
-			</button>
-			{#if data.user}
+				{#if data.user}
 				<button type="button" class="user-chip" title="Log out" onclick={handleLogout}>
 					{data.user.username}
 					<LogOut size={12} aria-hidden="true" />
