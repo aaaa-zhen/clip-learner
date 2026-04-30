@@ -257,7 +257,7 @@
 
 	.entries {
 		display: grid;
-		gap: 2px;
+		gap: 10px;
 	}
 
 	.entry {
