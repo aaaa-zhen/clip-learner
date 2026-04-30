@@ -27,20 +27,30 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 	const client = new OpenAI({
 		apiKey: settings.api_key,
-		baseURL: settings.base_url + '/v1',
+		baseURL: settings.base_url.endsWith('/v1') ? settings.base_url : settings.base_url + '/v1',
 		timeout: 15_000
 	});
 
-	const prompt = `You are a language analysis tool. Given a sentence, find all collocations and phrasal verbs.
+	const prompt = `You are a language analysis tool. Given a sentence, find collocations and phrasal verbs.
 
 Sentence: "${text}"
 
-Return JSON with a single "spans" array. Each item: {"text": "exact substring", "type": "collocation" or "phrasal_verb"}.
-Only include multi-word phrases (2+ words). Do not include single common words.
-Examples of what to highlight:
-- Phrasal verbs: "figure out", "set up", "come up with", "look into"
-- Collocations: "product visionary", "make sense", "take action", "strong foundation"
+Rules:
+- Only highlight phrases where the words BELONG TOGETHER as a single meaning unit.
+- The words must be CONSECUTIVE and in the SAME clause — never span across commas, "and", "but", or sentence boundaries.
+- Only include multi-word phrases (2–4 words). No single words.
+- Be selective — only highlight genuinely interesting phrases a language learner should know.
 
+Examples of GOOD highlights:
+- Phrasal verbs: "figure out", "set up", "come up with", "get used to"
+- Collocations: "make sense", "take action", "strong foundation", "so good"
+
+Examples of BAD highlights (do NOT do this):
+- "hardwired, and" — spans across a comma into the next clause
+- "food is" — not a meaningful collocation
+- "I think" — too common, not useful
+
+Return JSON: {"spans": [{"text": "exact substring", "type": "collocation" or "phrasal_verb"}]}
 If none found, return {"spans":[]}.
 Return valid JSON only, no markdown.`;
 

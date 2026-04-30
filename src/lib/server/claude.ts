@@ -408,6 +408,19 @@ function sampleSegments<T>(segments: T[], count: number): T[] {
 	return segments.filter((_, i) => i % step === 0).slice(0, count);
 }
 
+function shuffleAnswers(questions: QuizQuestion[]): QuizQuestion[] {
+	return questions.map((q) => {
+		const indices = [0, 1, 2, 3];
+		for (let i = indices.length - 1; i > 0; i--) {
+			const j = Math.floor(Math.random() * (i + 1));
+			[indices[i], indices[j]] = [indices[j], indices[i]];
+		}
+		const newOptions = indices.map((i) => q.options[i]);
+		const newCorrect = indices.indexOf(q.correct);
+		return { ...q, options: newOptions, correct: newCorrect };
+	});
+}
+
 function ensureQuestions(raw: unknown): QuizQuestion[] {
 	if (!Array.isArray(raw)) return [];
 	const cleaned: QuizQuestion[] = [];
@@ -479,7 +492,7 @@ Rules:
 - At least 1 comprehension, 1 vocab, and 1 inference/tone question
 - Make wrong options plausible — avoid obviously absurd answers
 - Questions should require actually understanding the content, not just keyword matching
-- "correct" is the 0-based index of the right answer
+- "correct" is the 0-based index of the right answer — IMPORTANT: randomize the position of the correct answer across questions (don't always put it at index 0)
 - "category" is one lowercase word from {vocab, comprehension, inference, idiom, nuance, slang, tone, paraphrase}
 - Include "context" (a short quote from the transcript) when relevant
 - Include "sourceWord" only when testing a specific saved word
@@ -493,7 +506,7 @@ Reply with JSON only, an array of 5 objects:
 	);
 
 	const parsed = extractJson(text);
-	return ensureQuestions(parsed).slice(0, 5);
+	return shuffleAnswers(ensureQuestions(parsed).slice(0, 5));
 }
 
 /**

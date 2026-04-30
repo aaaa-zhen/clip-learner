@@ -20,7 +20,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 	const client = new OpenAI({
 		apiKey: settings.api_key,
-		baseURL: settings.base_url + '/v1',
+		baseURL: settings.base_url.endsWith('/v1') ? settings.base_url : settings.base_url + '/v1',
 		timeout: 15_000
 	});
 
