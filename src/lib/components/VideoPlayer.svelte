@@ -38,13 +38,11 @@
 		if (segments.length === 0) return -1;
 		const ahead = 0.3; // show subtitle 0.3s before segment starts
 		for (let i = 0; i < segments.length; i++) {
-			if ($currentTime >= segments[i].start_time - ahead && $currentTime < segments[i].end_time) {
+			const next = segments[i + 1];
+			const end = next ? Math.min(segments[i].end_time + 0.35, next.start_time) : segments[i].end_time + 0.35;
+			if ($currentTime >= segments[i].start_time - ahead && $currentTime < end) {
 				return i;
 			}
-		}
-		// fallback: show the most recent past segment
-		for (let i = segments.length - 1; i >= 0; i--) {
-			if ($currentTime >= segments[i].start_time) return i;
 		}
 		return -1;
 	});

@@ -46,11 +46,12 @@
 		const time = $currentTime;
 		const idx = segments.findIndex((s, i) => {
 			const next = segments[i + 1];
-			return time >= s.start_time && (!next || time < next.start_time);
+			const end = next ? Math.min(s.end_time + 0.35, next.start_time) : s.end_time + 0.35;
+			return time >= s.start_time && time < end;
 		});
-		if (idx !== activeIndex && idx >= 0) {
+		if (idx !== activeIndex) {
 			activeIndex = idx;
-			if (followPlayback) {
+			if (idx >= 0 && followPlayback) {
 				scrollToActive();
 			}
 		}

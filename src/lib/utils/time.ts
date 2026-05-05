@@ -10,6 +10,6 @@ export function parseSrtTime(timeStr: string): number {
 	const minutes = parseInt(parts[1]);
 	const secParts = parts[2].replace(',', '.').split('.');
 	const seconds = parseInt(secParts[0]);
-	const ms = parseInt(secParts[1] || '0');
+	const ms = parseInt((secParts[1] || '0').padEnd(3, '0').slice(0, 3));
 	return hours * 3600 + minutes * 60 + seconds + ms / 1000;
 }

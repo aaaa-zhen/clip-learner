@@ -64,6 +64,10 @@
 
 	type CaptionMode = 'listen' | 'captions' | 'study';
 	type CaptionToken = { text: string; word: boolean; span?: HighlightSpan; key: string };
+	type CaptionSegment = Segment & { caption_key: string };
+
+	const maxCaptionSeconds = 5.5;
+	const maxCaptionChars = 96;
 
 	const captionModes: { id: CaptionMode; label: string }[] = [
 		{ id: 'listen', label: 'Listen' },
@@ -88,25 +92,34 @@
 	let downloadPollInterval: ReturnType<typeof setInterval> | null = null;
 	let processPollInterval: ReturnType<typeof setInterval> | null = null;
 
-	const activeSegment = $derived.by<Segment | null>(() => {
+	const captionSegments = $derived.by(() => buildCaptionSegments(data.segments as Segment[]));
+
+	const activeSegment = $derived.by<CaptionSegment | null>(() => {
 		const t = $currentTime;
-		const graceSeconds = 1.5;
-		for (const segment of data.segments as Segment[]) {
-			if (t >= segment.start_time && t <= segment.end_time + graceSeconds) return segment;
+		const leadSeconds = 0.15;
+		const graceSeconds = 0.35;
+		for (let i = 0; i < captionSegments.length; i++) {
+			const segment = captionSegments[i];
+			const next = captionSegments[i + 1];
+			const start = Math.max(0, segment.start_time - leadSeconds);
+			const end = next
+				? Math.min(segment.end_time + graceSeconds, next.start_time)
+				: segment.end_time + graceSeconds;
+			if (t >= start && t < end) return segment;
 		}
 		return null;
 	});
 
 	const activeSegmentIndex = $derived.by(() => {
 		if (!activeSegment) return -1;
-		return (data.segments as Segment[]).findIndex((segment) => segment.id === activeSegment.id);
+		return captionSegments.findIndex((segment) => segment.caption_key === activeSegment.caption_key);
 	});
 	const previousCaptionSegment = $derived(
-		activeSegmentIndex > 0 ? (data.segments as Segment[])[activeSegmentIndex - 1] : null
+		activeSegmentIndex > 0 ? captionSegments[activeSegmentIndex - 1] : null
 	);
 	const nextCaptionSegment = $derived(
-		activeSegmentIndex >= 0 && activeSegmentIndex < data.segments.length - 1
-			? (data.segments as Segment[])[activeSegmentIndex + 1]
+		activeSegmentIndex >= 0 && activeSegmentIndex < captionSegments.length - 1
+			? captionSegments[activeSegmentIndex + 1]
 			: null
 	);
 	const showCaptionText = $derived(
@@ -121,8 +134,8 @@
 
 	// Caption phrase highlighting
 	interface HighlightSpan { text: string; type: 'collocation' | 'phrasal_verb'; }
-	let highlightCache = $state<Record<number, HighlightSpan[]>>({});
-	const pendingHighlightIds = new Set<number>();
+	let highlightCache = $state<Record<string, HighlightSpan[]>>({});
+	const pendingHighlightIds = new Set<string>();
 	const annotationMap = $derived(
 		(data.annotations as HumorAnnotation[]).reduce((map, ann) => {
 			const list = map.get(ann.segment_id) || [];
@@ -139,9 +152,9 @@
 		}
 	});
 
-	async function loadCaptionHighlights(segment: Segment | null) {
-		if (!segment || highlightCache[segment.id] || pendingHighlightIds.has(segment.id)) return;
-		pendingHighlightIds.add(segment.id);
+	async function loadCaptionHighlights(segment: CaptionSegment | null) {
+		if (!segment || highlightCache[segment.caption_key] || pendingHighlightIds.has(segment.caption_key)) return;
+		pendingHighlightIds.add(segment.caption_key);
 		try {
 			const response = await fetch('/api/highlight', {
 				method: 'POST',
@@ -149,11 +162,11 @@
 				body: JSON.stringify({ text: segment.text })
 			});
 			const result = response.ok ? await response.json() : { spans: [] };
-			highlightCache = { ...highlightCache, [segment.id]: result.spans || [] };
+			highlightCache = { ...highlightCache, [segment.caption_key]: result.spans || [] };
 		} catch {
-			highlightCache = { ...highlightCache, [segment.id]: [] };
+			highlightCache = { ...highlightCache, [segment.caption_key]: [] };
 		} finally {
-			pendingHighlightIds.delete(segment.id);
+			pendingHighlightIds.delete(segment.caption_key);
 		}
 	}
 
@@ -161,7 +174,7 @@
 	type CaptionPart = { text: string; span?: HighlightSpan };
 	const captionParts = $derived.by((): CaptionPart[] => {
 		const text = activeSegment?.text ?? '';
-		const captionSpans = activeSegment ? highlightCache[activeSegment.id] || [] : [];
+		const captionSpans = activeSegment ? highlightCache[activeSegment.caption_key] || [] : [];
 		if (!captionSpans.length) return [{ text }];
 
 		// Sort spans by position in text, deduplicate overlaps
@@ -197,6 +210,85 @@
 		}
 		return tokens;
 	});
+
+	function buildCaptionSegments(segments: Segment[]): CaptionSegment[] {
+		const displaySegments: CaptionSegment[] = [];
+		for (const segment of segments) {
+			const duration = segment.end_time - segment.start_time;
+			const desiredCount = Math.max(
+				1,
+				Math.ceil(duration / maxCaptionSeconds),
+				Math.ceil(segment.text.length / maxCaptionChars)
+			);
+
+			if (desiredCount <= 1 || !(duration > 0)) {
+				displaySegments.push({ ...segment, caption_key: `${segment.id}:0` });
+				continue;
+			}
+
+			const chunks = splitCaptionText(segment.text, desiredCount);
+			if (chunks.length <= 1) {
+				displaySegments.push({ ...segment, caption_key: `${segment.id}:0` });
+				continue;
+			}
+
+			const weights = chunks.map((chunk) => Math.max(1, chunk.split(/\s+/).length));
+			const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
+			let startTime = segment.start_time;
+
+			for (let i = 0; i < chunks.length; i++) {
+				const endTime =
+					i === chunks.length - 1
+						? segment.end_time
+						: Math.min(segment.end_time, startTime + (duration * weights[i]) / totalWeight);
+				if (endTime > startTime) {
+					displaySegments.push({
+						...segment,
+						start_time: startTime,
+						end_time: endTime,
+						text: chunks[i],
+						caption_key: `${segment.id}:${i}`
+					});
+				}
+				startTime = endTime;
+			}
+		}
+		return displaySegments;
+	}
+
+	function splitCaptionText(text: string, targetCount: number): string[] {
+		const words = text.match(/\S+/g) || [];
+		if (words.length === 0 || targetCount <= 1) return [text];
+
+		const chunks: string[] = [];
+		const targetWords = Math.max(4, Math.ceil(words.length / targetCount));
+		let start = 0;
+
+		while (start < words.length) {
+			const remainingChunks = targetCount - chunks.length;
+			if (remainingChunks <= 1) {
+				chunks.push(words.slice(start).join(' '));
+				break;
+			}
+
+			const minEnd = Math.min(words.length, start + Math.max(3, targetWords - 3));
+			const maxEnd = Math.min(words.length, start + targetWords + 3);
+			let end = Math.min(words.length, start + targetWords);
+
+			for (let candidate = maxEnd; candidate >= minEnd; candidate--) {
+				if (/[.!?,;:]["']?$/.test(words[candidate - 1])) {
+					end = candidate;
+					break;
+				}
+			}
+
+			if (end <= start) end = Math.min(words.length, start + targetWords);
+			chunks.push(words.slice(start, end).join(' '));
+			start = end;
+		}
+
+		return chunks.map((chunk) => chunk.trim()).filter(Boolean);
+	}
 
 	// Adaptive quiz state — two-phase tutor.
 	// Flow: openQuiz() fetches 3 initial questions → user answers all 3 →

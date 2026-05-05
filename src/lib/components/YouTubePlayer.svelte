@@ -26,12 +26,11 @@
 	const currentSegmentIndex = $derived.by(() => {
 		if (segments.length === 0) return -1;
 		for (let i = 0; i < segments.length; i++) {
-			if ($currentTime >= segments[i].start_time && $currentTime < segments[i].end_time) {
+			const next = segments[i + 1];
+			const end = next ? Math.min(segments[i].end_time + 0.35, next.start_time) : segments[i].end_time + 0.35;
+			if ($currentTime >= segments[i].start_time - 0.15 && $currentTime < end) {
 				return i;
 			}
-		}
-		for (let i = segments.length - 1; i >= 0; i--) {
-			if ($currentTime >= segments[i].start_time) return i;
 		}
 		return -1;
 	});
