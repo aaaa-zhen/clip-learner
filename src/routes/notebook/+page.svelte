@@ -3,6 +3,7 @@
 		ArrowLeft,
 		BookMarked,
 		BookOpen,
+		Download,
 		Search,
 		Trash2,
 		Volume2
@@ -54,6 +55,19 @@
 		}
 	}
 
+	function exportJSON() {
+		const data = entries.map(({ word, definition, example, category, created_at }) => ({
+			word, definition, example, category, created_at
+		}));
+		const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = `notebook-${new Date().toISOString().slice(0, 10)}.json`;
+		a.click();
+		URL.revokeObjectURL(url);
+	}
+
 	async function removeWord(id: number) {
 		try {
 			await fetch('/api/notebook', {
@@ -100,6 +114,10 @@
 				<Search size={14} aria-hidden="true" />
 				<input bind:value={search} placeholder="Search saved words" />
 			</label>
+			<button class="export-btn" onclick={exportJSON} title="Export as JSON">
+				<Download size={14} aria-hidden="true" />
+				Export JSON
+			</button>
 		</div>
 
 		<div class="entries">
@@ -229,6 +247,27 @@
 
 	.toolbar {
 		margin: 18px 0 14px;
+		display: flex;
+		align-items: center;
+		gap: 10px;
+	}
+	.export-btn {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		padding: 0 12px;
+		height: 36px;
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		background: var(--bg-card);
+		color: var(--text-muted);
+		font-size: 13px;
+		cursor: pointer;
+		white-space: nowrap;
+	}
+	.export-btn:hover {
+		color: var(--accent);
+		border-color: var(--accent);
 	}
 
 	.search-box {

@@ -26,9 +26,11 @@
       "Bash(git commit:*)",
       "Bash(confirm you 're not a bot\" errors on VPS IPs.:*)",
       "Bash(git push:*)",
+      "Bash(rsync -avz --exclude 'node_modules' --exclude '.git' --exclude 'data' --exclude '.env' -e \"ssh -i /Users/meizu/Downloads/clip-learner-main/my.pem -o StrictHostKeyChecking=no\" /Users/meizu/Downloads/clip-learner-main/ ubuntu@43.134.87.27:~/clip-learner/)",
+      "Bash(yt-dlp --cookies-from-browser chrome --get-title 'https://www.youtube.com/watch?v=6UgncvV8tWo')",
+      "Bash(yt-dlp --cookies-from-browser chrome -o /tmp/yt-cookies-test.txt --cookies /tmp/yt-cookies.txt --skip-download 'https://www.youtube.com/watch?v=6UgncvV8tWo')",
       "Bash(git pull:*)",
-      "Bash(rm src/routes/episode/[id]/quiz/+page.svelte src/routes/episode/[id]/quiz/+page.server.ts)",
-      "Bash(rmdir src/routes/episode/[id]/quiz)"
+      "Bash(git stash:*)"
     ]
   }
 }
