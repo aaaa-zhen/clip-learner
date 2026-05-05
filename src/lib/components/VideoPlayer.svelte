@@ -36,14 +36,11 @@
 
 	const currentSegmentIndex = $derived.by(() => {
 		if (segments.length === 0) return -1;
+		const ahead = 0.3; // show subtitle 0.3s before segment starts
 		for (let i = 0; i < segments.length; i++) {
-			if ($currentTime >= segments[i].start_time && $currentTime < segments[i].end_time) {
+			if ($currentTime >= segments[i].start_time - ahead && $currentTime < segments[i].end_time) {
 				return i;
 			}
-		}
-		// If past last segment or between segments, find the nearest preceding one
-		for (let i = segments.length - 1; i >= 0; i--) {
-			if ($currentTime >= segments[i].start_time) return i;
 		}
 		return -1;
 	});
@@ -314,7 +311,7 @@
 		left: 50%;
 		bottom: 56px;
 		transform: translateX(-50%);
-		width: min(86%, 760px);
+		width: min(96%, 960px);
 		display: flex;
 		justify-content: center;
 		pointer-events: none;
@@ -337,7 +334,7 @@
 		background: rgba(0, 0, 0, 0.82);
 		color: white;
 		font-family: var(--font-ui);
-		font-size: 18px;
+		font-size: 16px;
 		font-weight: 600;
 		line-height: 1.45;
 		text-align: center;
@@ -543,7 +540,7 @@
 		}
 
 		.smart-captions p {
-			font-size: 15px;
+			font-size: 13px;
 			padding: 8px 12px;
 		}
 	}
