@@ -42,6 +42,10 @@
 				return i;
 			}
 		}
+		// fallback: show the most recent past segment
+		for (let i = segments.length - 1; i >= 0; i--) {
+			if ($currentTime >= segments[i].start_time) return i;
+		}
 		return -1;
 	});
 
