@@ -5,7 +5,7 @@
 
 	let apiKey = $state('');
 	let baseUrl = $state('https://aihubmix.com');
-	let model = $state('gpt-5.4-nano');
+	let model = $state('gpt-5.4-mini');
 	let showApiKey = $state(false);
 	let saving = $state(false);
 	let saved = $state(false);

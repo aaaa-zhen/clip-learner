@@ -6,8 +6,8 @@ import { env } from '$env/dynamic/private';
 
 const DEFAULTS = {
 	api_key: '',
-	base_url: 'https://token-plan-cn.xiaomimimo.com/v1',
-	model: 'mimo-v2.5'
+	base_url: 'https://aihubmix.com/v1',
+	model: 'gpt-5.4-mini'
 };
 
 export async function getSettings(userId: number): Promise<typeof DEFAULTS> {
@@ -17,24 +17,29 @@ export async function getSettings(userId: number): Promise<typeof DEFAULTS> {
 			[userId]
 		);
 		const settings = { ...DEFAULTS };
+		const configuredKeys = new Set<string>();
 		for (const row of rows) {
 			if (row.key in settings) {
 				(settings as any)[row.key] = row.value;
+				configuredKeys.add(row.key);
 			}
 		}
 		// Fallback to env vars if no DB settings
-		if (!settings.api_key && env.ANTHROPIC_API_KEY) {
+		if (!configuredKeys.has('api_key') && env.ANTHROPIC_API_KEY) {
 			settings.api_key = env.ANTHROPIC_API_KEY;
 		}
-		if (env.ANTHROPIC_BASE_URL) {
-			settings.base_url = settings.base_url || env.ANTHROPIC_BASE_URL;
+		if (!configuredKeys.has('base_url') && env.ANTHROPIC_BASE_URL) {
+			settings.base_url = env.ANTHROPIC_BASE_URL;
+		}
+		if (!configuredKeys.has('model') && env.ANTHROPIC_MODEL) {
+			settings.model = env.ANTHROPIC_MODEL;
 		}
 		return settings;
 	} catch {
 		return {
 			api_key: env.ANTHROPIC_API_KEY || '',
 			base_url: env.ANTHROPIC_BASE_URL || DEFAULTS.base_url,
-			model: DEFAULTS.model
+			model: env.ANTHROPIC_MODEL || DEFAULTS.model
 		};
 	}
 }
