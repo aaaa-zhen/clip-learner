@@ -9,10 +9,9 @@ export interface ParsedSegment {
 
 const TIME_RE =
 	/(\d{1,2}:\d{2}:\d{2}[,.]\d{1,3})\s*-->\s*(\d{1,2}:\d{2}:\d{2}[,.]\d{1,3})/;
-const MAX_CAPTION_SECONDS = 5.5;
-const MAX_CAPTION_CHARS = 96;
-const MIN_MERGE_SECONDS = 1.7;
-const MAX_MERGED_SECONDS = 6.5;
+const MAX_MERGED_SECONDS = 12;
+const MAX_MERGED_CHARS = 220;
+const MAX_MERGE_GAP_SECONDS = 1.2;
 
 export function parseSrt(content: string): ParsedSegment[] {
 	const normalized = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/^\uFEFF/, '');
@@ -43,10 +42,10 @@ export function parseSrt(content: string): ParsedSegment[] {
 		raw.push({ index: raw.length, startTime, endTime, text });
 	}
 
-	// Whisper and compatible gateways can return anything from word-sized
-	// fragments to very long cues. Normalize both ends so the UI keeps moving
-	// with the video instead of pinning one large paragraph under the player.
-	return reindexSegments(mergeSegments(splitLongSegments(raw).sort((a, b) => a.startTime - b.startTime)));
+	// Whisper and compatible gateways often return word-sized fragments. Keep
+	// those as sentence-like captions so shadowing follows the original line
+	// instead of jumping through artificial chunks.
+	return reindexSegments(mergeSegments(raw.sort((a, b) => a.startTime - b.startTime)));
 }
 
 function cleanCaptionText(text: string): string {
@@ -74,19 +73,8 @@ function mergeSegments(segments: ParsedSegment[]): ParsedSegment[] {
 		const duration = seg.endTime - current.startTime;
 		const gap = seg.startTime - current.endTime;
 		const combinedText = `${current.text} ${seg.text}`;
-		const currentDuration = current.endTime - current.startTime;
-		const currentLooksComplete = /[.!?]["']?$/.test(current.text);
 
-		// Merge only tiny continuation fragments. Complete short sentences such
-		// as "I was shocked." should stay as their own caption, while fragments
-		// like "and then" can be joined with the next cue.
-		if (
-			currentDuration < MIN_MERGE_SECONDS &&
-			!currentLooksComplete &&
-			duration <= MAX_MERGED_SECONDS &&
-			gap <= 1 &&
-			combinedText.length <= MAX_CAPTION_CHARS
-		) {
+		if (shouldMergeCaption(current, seg, combinedText, duration, gap)) {
 			current.endTime = seg.endTime;
 			current.text = combinedText;
 		} else {
@@ -106,84 +94,28 @@ function mergeSegments(segments: ParsedSegment[]): ParsedSegment[] {
 	}));
 }
 
-function splitLongSegments(segments: ParsedSegment[]): ParsedSegment[] {
-	const split: ParsedSegment[] = [];
-
-	for (const seg of segments) {
-		const duration = seg.endTime - seg.startTime;
-		const desiredCount = Math.max(
-			1,
-			Math.ceil(duration / MAX_CAPTION_SECONDS),
-			Math.ceil(seg.text.length / MAX_CAPTION_CHARS)
-		);
-
-		if (desiredCount <= 1) {
-			split.push({ ...seg });
-			continue;
-		}
-
-		const chunks = splitTextIntoChunks(seg.text, desiredCount);
-		if (chunks.length <= 1) {
-			split.push({ ...seg });
-			continue;
-		}
-
-		const weights = chunks.map((chunk) => Math.max(1, chunk.split(/\s+/).length));
-		const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
-		let cursor = seg.startTime;
-
-		for (let i = 0; i < chunks.length; i++) {
-			const endTime =
-				i === chunks.length - 1
-					? seg.endTime
-					: Math.min(seg.endTime, cursor + (duration * weights[i]) / totalWeight);
-			if (endTime > cursor) {
-				split.push({
-					index: split.length,
-					startTime: cursor,
-					endTime,
-					text: chunks[i]
-				});
-			}
-			cursor = endTime;
-		}
-	}
-
-	return split;
+function shouldMergeCaption(
+	current: ParsedSegment,
+	next: ParsedSegment,
+	combinedText: string,
+	duration: number,
+	gap: number
+): boolean {
+	if (gap > MAX_MERGE_GAP_SECONDS) return false;
+	if (combinedText.length > MAX_MERGED_CHARS) return false;
+	if (duration > MAX_MERGED_SECONDS) return false;
+	if (!endsSentence(current.text)) return true;
+	return startsLikeContinuation(next.text);
 }
 
-function splitTextIntoChunks(text: string, targetCount: number): string[] {
-	const words = text.match(/\S+/g) || [];
-	if (words.length === 0 || targetCount <= 1) return [text];
+function endsSentence(text: string): boolean {
+	return /[.!?]["')\]]?$/.test(text.trim());
+}
 
-	const chunks: string[] = [];
-	const targetWords = Math.max(4, Math.ceil(words.length / targetCount));
-	let start = 0;
-
-	while (start < words.length) {
-		const remainingChunks = targetCount - chunks.length;
-		if (remainingChunks <= 1) {
-			chunks.push(words.slice(start).join(' '));
-			break;
-		}
-
-		const minEnd = Math.min(words.length, start + Math.max(3, targetWords - 3));
-		const maxEnd = Math.min(words.length, start + targetWords + 3);
-		let end = Math.min(words.length, start + targetWords);
-
-		for (let candidate = maxEnd; candidate >= minEnd; candidate--) {
-			if (/[.!?,;:]["']?$/.test(words[candidate - 1])) {
-				end = candidate;
-				break;
-			}
-		}
-
-		if (end <= start) end = Math.min(words.length, start + targetWords);
-		chunks.push(words.slice(start, end).join(' '));
-		start = end;
-	}
-
-	return chunks.map((chunk) => chunk.trim()).filter(Boolean);
+function startsLikeContinuation(text: string): boolean {
+	return /^(and|but|or|so|because|then|that|which|who|when|while|where|what|why|how|to|of|in|on|for|with|from|as|at|by)\b/i.test(
+		text.trim()
+	);
 }
 
 function deduplicateText(text: string): string {

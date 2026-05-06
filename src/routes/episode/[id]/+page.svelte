@@ -63,16 +63,13 @@
 	let analysisTab = $state<'explanation' | 'scenes' | 'vocab'>('explanation');
 	let focusSegmentId = $state<number | null>(null);
 
-	type CaptionMode = 'listen' | 'captions' | 'study';
+	type CaptionMode = 'listen' | 'shadowing';
 	type CaptionToken = { text: string; word: boolean; span?: HighlightSpan; key: string };
 	type CaptionSegment = Segment & { caption_key: string };
 
-	const maxCaptionSeconds = 5.5;
-	const maxCaptionChars = 96;
-
 	const captionModes: { id: CaptionMode; label: string }[] = [
-		{ id: 'listen', label: 'Listen' },
-		{ id: 'captions', label: 'Captions' }
+		{ id: 'listen', label: 'Listening' },
+		{ id: 'shadowing', label: 'Shadowing' }
 	];
 
 	let captionMode = $state<CaptionMode>('listen');
@@ -213,82 +210,10 @@
 	});
 
 	function buildCaptionSegments(segments: Segment[]): CaptionSegment[] {
-		const displaySegments: CaptionSegment[] = [];
-		for (const segment of segments) {
-			const duration = segment.end_time - segment.start_time;
-			const desiredCount = Math.max(
-				1,
-				Math.ceil(duration / maxCaptionSeconds),
-				Math.ceil(segment.text.length / maxCaptionChars)
-			);
-
-			if (desiredCount <= 1 || !(duration > 0)) {
-				displaySegments.push({ ...segment, caption_key: `${segment.id}:0` });
-				continue;
-			}
-
-			const chunks = splitCaptionText(segment.text, desiredCount);
-			if (chunks.length <= 1) {
-				displaySegments.push({ ...segment, caption_key: `${segment.id}:0` });
-				continue;
-			}
-
-			const weights = chunks.map((chunk) => Math.max(1, chunk.split(/\s+/).length));
-			const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
-			let startTime = segment.start_time;
-
-			for (let i = 0; i < chunks.length; i++) {
-				const endTime =
-					i === chunks.length - 1
-						? segment.end_time
-						: Math.min(segment.end_time, startTime + (duration * weights[i]) / totalWeight);
-				if (endTime > startTime) {
-					displaySegments.push({
-						...segment,
-						start_time: startTime,
-						end_time: endTime,
-						text: chunks[i],
-						caption_key: `${segment.id}:${i}`
-					});
-				}
-				startTime = endTime;
-			}
-		}
-		return displaySegments;
-	}
-
-	function splitCaptionText(text: string, targetCount: number): string[] {
-		const words = text.match(/\S+/g) || [];
-		if (words.length === 0 || targetCount <= 1) return [text];
-
-		const chunks: string[] = [];
-		const targetWords = Math.max(4, Math.ceil(words.length / targetCount));
-		let start = 0;
-
-		while (start < words.length) {
-			const remainingChunks = targetCount - chunks.length;
-			if (remainingChunks <= 1) {
-				chunks.push(words.slice(start).join(' '));
-				break;
-			}
-
-			const minEnd = Math.min(words.length, start + Math.max(3, targetWords - 3));
-			const maxEnd = Math.min(words.length, start + targetWords + 3);
-			let end = Math.min(words.length, start + targetWords);
-
-			for (let candidate = maxEnd; candidate >= minEnd; candidate--) {
-				if (/[.!?,;:]["']?$/.test(words[candidate - 1])) {
-					end = candidate;
-					break;
-				}
-			}
-
-			if (end <= start) end = Math.min(words.length, start + targetWords);
-			chunks.push(words.slice(start, end).join(' '));
-			start = end;
-		}
-
-		return chunks.map((chunk) => chunk.trim()).filter(Boolean);
+		return segments.map((segment) => ({
+			...segment,
+			caption_key: String(segment.id)
+		}));
 	}
 
 	// Adaptive quiz state — two-phase tutor.
@@ -1029,7 +954,7 @@
 												aria-pressed={captionMode === mode.id}
 												onclick={() => setCaptionMode(mode.id)}
 											>
-												{#if mode.id === 'study'}
+												{#if mode.id === 'shadowing'}
 													<ListTree size={14} strokeWidth={2} aria-hidden="true" />
 												{:else}
 													<Captions size={14} strokeWidth={2} aria-hidden="true" />
@@ -1856,17 +1781,11 @@
 		}
 	.paused-text {
 		font-size: 19px;
-		line-height: 1.6;
+		line-height: 1.55;
 		color: var(--text);
 		margin: 0;
 		font-family: var(--font-body);
 		user-select: text;
-		/* Limit to 2 lines so long segments don't overwhelm */
-			display: -webkit-box;
-			line-clamp: 2;
-			-webkit-line-clamp: 2;
-			-webkit-box-orient: vertical;
-			overflow: hidden;
 		}
 		.paused-text.hint {
 			color: var(--text-muted);
