@@ -27,5 +27,5 @@ export const categoryLabels: Record<HumorCategory, string> = {
 	banter: 'Banter',
 	absurdist: 'Absurdist',
 	double_entendre: 'Dirty Joke',
-	caption_error: 'Caption Error'
+	caption_error: 'Possible miscaption'
 };

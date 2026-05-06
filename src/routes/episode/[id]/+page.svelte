@@ -818,6 +818,11 @@
 		return `--chip-color: ${color}`;
 	}
 
+	function annotationLabel(annotation: HumorAnnotation) {
+		if (annotation.category === 'caption_error') return 'May be misheard';
+		return categoryLabels[annotation.category as HumorCategory] || annotation.category.replace(/_/g, ' ');
+	}
+
 	function handleExplain(segmentId: number) {
 		const seg = data.segments.find((s: any) => s.id === segmentId);
 		// Update analysis panel to show this segment's explanation
@@ -1030,7 +1035,7 @@
 														title={annotation.explanation}
 														onclick={(e) => { e.stopPropagation(); explainActiveCaption(); }}
 													>
-														{categoryLabels[annotation.category as HumorCategory] || annotation.category.replace(/_/g, ' ')}
+														{annotationLabel(annotation)}
 													</button>
 												{/each}
 											</div>

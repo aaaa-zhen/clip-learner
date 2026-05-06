@@ -133,8 +133,8 @@ Categories: wordplay, cultural_reference, sarcasm, deadpan, callback, self_depre
 For each annotation:
 - excerpt: the exact words from the transcript
 - segment_index: which line it's in
-- category: one of the categories above (use "caption_error" when auto-captions got words wrong)
-- explanation: what it means in very simple English. If caption is wrong, say what they probably said.
+- category: one of the categories above (use "caption_error" only when auto-captions likely heard the word wrong)
+- explanation: what it means in very simple English. If the caption may be wrong, gently say what the speaker probably said, for example: "The caption says 'thropel', but they probably mean 'throuple'."
 
 Also provide scene-by-scene breakdown and vocabulary suggestions.
 
