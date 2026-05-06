@@ -3,7 +3,9 @@
 		ArrowLeft,
 		BookMarked,
 		BookOpen,
+		Clock,
 		Download,
+		Film,
 		Search,
 		Trash2,
 		Volume2
@@ -26,11 +28,28 @@
 		const q = search.trim().toLowerCase();
 		if (!q) return entries;
 		return entries.filter((entry) =>
-			[entry.word, entry.definition, entry.category]
+			[entry.word, entry.definition, entry.category, entry.episode_title]
 				.filter(Boolean)
 				.some((value) => String(value).toLowerCase().includes(q))
 		);
 	});
+
+	function formatTimestamp(seconds: number | null | undefined) {
+		if (seconds == null || !Number.isFinite(Number(seconds))) return '';
+		const total = Math.max(0, Math.floor(Number(seconds)));
+		const h = Math.floor(total / 3600);
+		const m = Math.floor((total % 3600) / 60);
+		const s = total % 60;
+		if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+		return `${m}:${String(s).padStart(2, '0')}`;
+	}
+
+	function sourceHref(entry: NotebookEntry) {
+		if (!entry.episode_id) return '';
+		const timestamp = Number(entry.source_time);
+		const suffix = Number.isFinite(timestamp) && timestamp >= 0 ? `?t=${Math.floor(timestamp)}` : '';
+		return `/episode/${entry.episode_id}${suffix}`;
+	}
 
 	async function playTTS(word: string, id: number) {
 		if (ttsLoading !== null) return;
@@ -56,8 +75,8 @@
 	}
 
 	function exportJSON() {
-		const data = entries.map(({ word, definition, example, category, created_at }) => ({
-			word, definition, example, category, created_at
+		const data = entries.map(({ word, definition, example, category, episode_title, source_time, created_at }) => ({
+			word, definition, example, category, episode_title, source_time, created_at
 		}));
 		const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
 		const url = URL.createObjectURL(blob);
@@ -136,6 +155,18 @@
 								{/if}
 							</div>
 							<p class="definition">{entry.definition}</p>
+							{#if entry.episode_title || entry.source_time != null}
+								<a class="source-line" href={sourceHref(entry)} aria-label={`Open source for ${entry.word}`}>
+									<Film size={12} aria-hidden="true" />
+									<span class="source-title">{entry.episode_title || 'Saved source'}</span>
+									{#if entry.source_time != null}
+										<span class="source-time">
+											<Clock size={11} aria-hidden="true" />
+											{formatTimestamp(entry.source_time)}
+										</span>
+									{/if}
+								</a>
+							{/if}
 						</div>
 						<div class="entry-actions">
 							<button
@@ -343,6 +374,34 @@
 		font-size: 14px;
 		color: var(--text-muted);
 		line-height: 1.5;
+	}
+
+	.source-line {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		max-width: 100%;
+		margin-top: 8px;
+		color: var(--text-light);
+		font-size: 12px;
+		line-height: 1.3;
+		text-decoration: none;
+	}
+	.source-line:hover {
+		color: var(--accent);
+		text-decoration: none;
+	}
+	.source-title {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.source-time {
+		display: inline-flex;
+		align-items: center;
+		gap: 3px;
+		flex-shrink: 0;
+		color: var(--text-muted);
 	}
 
 	.entry-actions {

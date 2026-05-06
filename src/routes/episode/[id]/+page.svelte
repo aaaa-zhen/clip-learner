@@ -15,6 +15,7 @@
 		BookOpen,
 		Captions,
 		CheckCircle,
+		Clock,
 		Download,
 		HelpCircle,
 		ListTree,
@@ -358,7 +359,7 @@
 		wordsSaved = data.wordsSaved ?? 0;
 	});
 
-	let localNotebook = $state<Array<{word: string; definition: string; example?: string; category?: string}>>([]);
+	let localNotebook = $state<Array<{word: string; definition: string; example?: string; category?: string; source_time?: number | null}>>([]);
 
 	$effect(() => {
 		localNotebook = data.notebookEntries ? [...data.notebookEntries] : [];
@@ -371,7 +372,7 @@
 			wordsSaved++;
 			const detail = (e as CustomEvent).detail;
 			if (detail?.word) {
-				localNotebook = [{ word: detail.word, definition: detail.definition, example: detail.example, category: detail.category }, ...localNotebook];
+				localNotebook = [{ word: detail.word, definition: detail.definition, example: detail.example, category: detail.category, source_time: detail.source_time }, ...localNotebook];
 			}
 		};
 		window.addEventListener('word:saved', onSaved);
@@ -789,6 +790,8 @@
 	});
 
 	onMount(() => {
+		const startParam = new URLSearchParams(window.location.search).get('t');
+		const startTime = startParam ? Number(startParam) : null;
 		// Pre-populate currentTime from the saved resume position so the
 		// "paused line" panel shows the correct segment immediately after
 		// refresh, instead of flickering to segment 0 until the YouTube
@@ -796,7 +799,9 @@
 		// what YouTubePlayer writes — which is the YouTube video_id.
 		const resumeKey = data.episode.video_id || data.episode.id;
 		const saved = loadResumePosition(resumeKey);
-		if (saved && saved > 0) {
+		if (startTime !== null && Number.isFinite(startTime) && startTime >= 0) {
+			currentTime.set(startTime);
+		} else if (saved && saved > 0) {
 			currentTime.set(saved);
 		}
 
@@ -818,8 +823,13 @@
 			if (quizOpen && answered && e.key === 'Enter') nextQuestion();
 		};
 		window.addEventListener('keydown', handleKey);
+		const initialSeekTimer =
+			startTime !== null && Number.isFinite(startTime) && startTime >= 0
+				? setTimeout(() => videoPlayer?.seekTo(startTime), 800)
+				: null;
 		return () => {
 			window.removeEventListener('keydown', handleKey);
+			if (initialSeekTimer) clearTimeout(initialSeekTimer);
 			clearDownloadPolling();
 			clearProcessPolling();
 		};
@@ -949,7 +959,14 @@
 			await fetch('/api/notebook', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ word: vocab.word, definition: vocab.definition, example: vocab.example, episode_id: data.episode.id, category: vocab.category })
+				body: JSON.stringify({
+					word: vocab.word,
+					definition: vocab.definition,
+					example: vocab.example,
+					episode_id: data.episode.id,
+					source_time: activeSegment?.start_time ?? $currentTime,
+					category: vocab.category
+				})
 			});
 		} catch {}
 	}
@@ -1048,6 +1065,7 @@
 									class="caption-bar"
 									class:dim={!showCaptionText}
 									data-caption-text={activeSegment?.text || ''}
+									data-caption-start={activeSegment?.start_time ?? ''}
 								>
 									<div class="caption-text">
 										{#if showCaptionText && activeSegment}
@@ -1223,6 +1241,12 @@
 					</div>
 					<p class="nb-def">{entry.definition}</p>
 					{#if entry.example}<p class="nb-ex">{entry.example}</p>{/if}
+					{#if entry.source_time != null}
+						<button type="button" class="nb-source" onclick={() => handleSeek(Number(entry.source_time))}>
+							<Clock size={11} aria-hidden="true" />
+							{formatTime(Number(entry.source_time))}
+						</button>
+					{/if}
 				</div>
 			{/each}
 		{/if}
@@ -1982,6 +2006,20 @@
 	}
 	.nb-def { font-size: 13.5px; color: var(--text-muted); line-height: 1.55; }
 	.nb-ex { font-size: 13px; color: var(--text-muted); font-style: italic; margin-top: 4px; }
+	.nb-source {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		margin-top: 7px;
+		padding: 0;
+		min-height: auto;
+		border: none;
+		background: none;
+		color: var(--text-light);
+		font-size: 12px;
+		cursor: pointer;
+	}
+	.nb-source:hover { color: var(--accent); }
 
 	.help-ctx {
 		background: var(--bg-dark);

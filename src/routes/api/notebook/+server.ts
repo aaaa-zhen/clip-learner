@@ -4,14 +4,21 @@ import { query } from '$lib/server/db';
 
 export const GET: RequestHandler = async ({ locals }) => {
 	const { rows } = await query(
-		'SELECT * FROM vocab_notebook WHERE user_id = $1 ORDER BY created_at DESC',
+		`SELECT
+			vn.*,
+			e.title as episode_title,
+			e.url as episode_url
+		FROM vocab_notebook vn
+		LEFT JOIN episodes e ON e.id = vn.episode_id AND e.user_id = vn.user_id
+		WHERE vn.user_id = $1
+		ORDER BY vn.created_at DESC`,
 		[locals.user!.id]
 	);
 	return json(rows);
 };
 
 export const POST: RequestHandler = async ({ request, locals }) => {
-	const { word, definition, example, episode_id, category } = await request.json();
+	const { word, definition, example, episode_id, source_time, category } = await request.json();
 
 	if (!word) {
 		return json({ error: 'word is required' }, { status: 400 });
@@ -26,9 +33,11 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		return json({ id: existing[0].id, duplicate: true }, { status: 409 });
 	}
 
+	const sourceTime = Number(source_time);
+	const normalizedSourceTime = Number.isFinite(sourceTime) && sourceTime >= 0 ? sourceTime : null;
 	const { rows: [row] } = await query(
-		'INSERT INTO vocab_notebook (word, definition, example, episode_id, category, user_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
-		[word, definition, example, episode_id || null, category || 'general', locals.user!.id]
+		'INSERT INTO vocab_notebook (word, definition, example, episode_id, source_time, category, user_id) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
+		[word, definition, example, episode_id || null, normalizedSourceTime, category || 'general', locals.user!.id]
 	);
 
 	return json({ id: row.id });

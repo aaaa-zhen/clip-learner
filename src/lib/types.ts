@@ -72,6 +72,7 @@ export interface VocabEntry {
 	definition: string;
 	example: string;
 	episode_id: string | null;
+	source_time: number | null;
 	category: string;
 	confidence: number;
 	created_at: string;

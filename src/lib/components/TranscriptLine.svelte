@@ -122,6 +122,7 @@
 	class="line"
 	class:active
 	class:dimmed
+	data-start-time={startTime}
 >
 	<button class="timestamp" onclick={handleSeek} title="Seek to {formatTime(startTime)}">{formatTime(startTime)}</button>
 	<!-- svelte-ignore a11y_click_events_have_key_events -->

@@ -1,11 +1,12 @@
 <script lang="ts">
 	import { BookmarkPlus, Volume2 } from 'lucide-svelte';
-	import { isPlaying, subtitleVisible } from '$lib/stores/player';
+	import { currentTime, isPlaying, subtitleVisible } from '$lib/stores/player';
 	import { requireAuth } from '$lib/stores/auth';
 
 	interface LookupContext {
 		episodeTitle?: string;
 		source?: 'transcript' | 'analysis' | 'generic';
+		sourceTime?: number | null;
 		currentLine?: string;
 		previousLine?: string;
 		nextLine?: string;
@@ -215,6 +216,7 @@
 					definition: entry.definition,
 					example: entry.example || '',
 					episode_id: episodeId || null,
+					source_time: episodeId ? lookupContext?.sourceTime ?? $currentTime : null,
 					category: entry.partOfSpeech || 'general'
 				})
 			});
@@ -237,7 +239,7 @@
 			toastTimer = setTimeout(() => { toastVisible = false; }, 2500);
 			// Notify episode page to increment count + update notebook drawer
 			window.dispatchEvent(new CustomEvent('word:saved', {
-				detail: { word, definition: entry.definition, example: entry.example, category: 'vocabulary' }
+				detail: { word, definition: entry.definition, example: entry.example, category: 'vocabulary', source_time: episodeId ? lookupContext?.sourceTime ?? $currentTime : null }
 			}));
 			window.getSelection()?.removeAllRanges();
 		} catch {
@@ -275,10 +277,12 @@
 			const currentLine = line.querySelector('.text')?.textContent?.trim() || '';
 			const previousLine = getLineText(line.previousElementSibling);
 			const nextLine = getLineText(line.nextElementSibling);
+			const sourceTime = Number(line.dataset.startTime);
 
 			return {
 				episodeTitle,
 				source: 'transcript',
+				sourceTime: Number.isFinite(sourceTime) ? sourceTime : null,
 				currentLine,
 				previousLine,
 				nextLine
@@ -296,9 +300,11 @@
 
 		const caption = target.closest('.caption-bar') as HTMLElement | null;
 		if (caption) {
+			const sourceTime = Number(caption.dataset.captionStart);
 			return {
 				episodeTitle,
 				source: 'transcript',
+				sourceTime: Number.isFinite(sourceTime) ? sourceTime : null,
 				currentLine: caption.dataset.captionText || caption.textContent?.trim() || ''
 			};
 		}
