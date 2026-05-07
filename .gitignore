@@ -19,6 +19,7 @@ Thumbs.db
 !.env.test
 
 # Secrets / certificates
+cookies.txt
 *.pem
 *.key
 *.crt
