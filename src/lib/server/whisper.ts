@@ -27,11 +27,16 @@ import { getSettings } from './claude';
 
 // --- config -------------------------------------------------------------
 
-const WHISPER_MODEL = env.WHISPER_MODEL || 'whisper-large-v3-turbo';
+const WHISPER_MODEL = env.WHISPER_MODEL || 'whisper-1';
 const WHISPER_LOCAL_MODEL = env.WHISPER_LOCAL_MODEL || 'tiny.en';
 const CHUNK_SECONDS = Number(env.WHISPER_CHUNK_SECONDS || 10 * 60);
 const MAX_PARALLEL_CHUNKS = Number(env.WHISPER_MAX_PARALLEL_CHUNKS || 2);
 const MAX_RETRIES = 5;
+
+function normalizeOpenAIBaseUrl(value: string): string {
+	const trimmed = value.replace(/\/+$/, '');
+	return trimmed.endsWith('/v1') ? trimmed : `${trimmed}/v1`;
+}
 
 /** Resolve Whisper API credentials: user settings first, then env vars. */
 async function getWhisperConfig(userId?: number): Promise<{ apiKey: string; baseUrl: string }> {
@@ -39,13 +44,13 @@ async function getWhisperConfig(userId?: number): Promise<{ apiKey: string; base
 	if (userId) {
 		const settings = await getSettings(userId);
 		if (settings.api_key) {
-			const baseUrl = (settings.base_url || 'https://aihubmix.com').replace(/\/+$/, '');
-			return { apiKey: settings.api_key, baseUrl: baseUrl + '/v1' };
+			const baseUrl = normalizeOpenAIBaseUrl(settings.base_url || 'https://aihubmix.com');
+			return { apiKey: settings.api_key, baseUrl };
 		}
 	}
 	// Fall back to server-side env vars
 	const apiKey = env.WHISPER_API_KEY || '';
-	const baseUrl = (env.WHISPER_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, '');
+	const baseUrl = normalizeOpenAIBaseUrl(env.WHISPER_BASE_URL || 'https://api.openai.com/v1');
 	return { apiKey, baseUrl };
 }
 
