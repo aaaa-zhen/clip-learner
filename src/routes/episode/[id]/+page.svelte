@@ -6,6 +6,7 @@
 	import AnalysisPanel from '$lib/components/AnalysisPanel.svelte';
 	import type { HumorAnnotation, HumorCategory, Segment } from '$lib/types';
 	import { categoryColors, categoryLabels } from '$lib/utils/colors';
+	import { playPronunciation } from '$lib/utils/tts';
 
 	import { invalidateAll } from '$app/navigation';
 	import { onDestroy, onMount, tick } from 'svelte';
@@ -307,24 +308,12 @@
 	const backdropVisible = $derived(notebookOpen || quizOpen || lineHelpOpen);
 
 	let drawerTtsLoading = $state<string | null>(null);
-	let drawerTtsAudio: HTMLAudioElement | null = null;
 
 	async function playDrawerTTS(word: string) {
 		if (drawerTtsLoading) return;
 		drawerTtsLoading = word;
 		try {
-			const res = await fetch('/api/tts', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ text: word })
-			});
-			if (!res.ok) return;
-			const blob = await res.blob();
-			const url = URL.createObjectURL(blob);
-			if (drawerTtsAudio) { drawerTtsAudio.pause(); URL.revokeObjectURL(drawerTtsAudio.src); }
-			drawerTtsAudio = new Audio(url);
-			drawerTtsAudio.play();
-			drawerTtsAudio.onended = () => URL.revokeObjectURL(url);
+			await playPronunciation(word);
 		} catch {
 			// silently fail
 		} finally {

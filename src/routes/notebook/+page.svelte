@@ -10,6 +10,7 @@
 		Trash2,
 		Volume2
 	} from 'lucide-svelte';
+	import { playPronunciation } from '$lib/utils/tts';
 
 	let { data } = $props();
 
@@ -17,7 +18,6 @@
 
 	let entries = $state<NotebookEntry[]>([]);
 	let ttsLoading = $state<number | null>(null);
-	let ttsAudio: HTMLAudioElement | null = null;
 	let search = $state('');
 
 	$effect(() => {
@@ -55,18 +55,7 @@
 		if (ttsLoading !== null) return;
 		ttsLoading = id;
 		try {
-			const res = await fetch('/api/tts', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ text: word })
-			});
-			if (!res.ok) return;
-			const blob = await res.blob();
-			const url = URL.createObjectURL(blob);
-			if (ttsAudio) { ttsAudio.pause(); URL.revokeObjectURL(ttsAudio.src); }
-			ttsAudio = new Audio(url);
-			ttsAudio.play();
-			ttsAudio.onended = () => URL.revokeObjectURL(url);
+			await playPronunciation(word);
 		} catch {
 			// silently fail
 		} finally {

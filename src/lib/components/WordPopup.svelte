@@ -2,6 +2,7 @@
 	import { BookmarkPlus, Volume2 } from 'lucide-svelte';
 	import { currentTime, isPlaying, subtitleVisible } from '$lib/stores/player';
 	import { requireAuth } from '$lib/stores/auth';
+	import { playPronunciation } from '$lib/utils/tts';
 
 	interface LookupContext {
 		episodeTitle?: string;
@@ -41,7 +42,6 @@
 	let toastWord = $state('');
 	let toastTimer: ReturnType<typeof setTimeout> | null = null;
 	let ttsLoading = $state(false);
-	let ttsAudio: HTMLAudioElement | null = null;
 	let chinese = $state('');
 	let chineseLoading = $state(false);
 
@@ -183,21 +183,7 @@
 		if (ttsLoading || !word) return;
 		ttsLoading = true;
 		try {
-			const res = await fetch('/api/tts', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ text: word })
-			});
-			if (!res.ok) return;
-			const blob = await res.blob();
-			const url = URL.createObjectURL(blob);
-			if (ttsAudio) {
-				ttsAudio.pause();
-				URL.revokeObjectURL(ttsAudio.src);
-			}
-			ttsAudio = new Audio(url);
-			ttsAudio.play();
-			ttsAudio.onended = () => URL.revokeObjectURL(url);
+			await playPronunciation(word);
 		} catch {
 			// silently fail
 		} finally {
