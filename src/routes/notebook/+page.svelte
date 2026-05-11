@@ -193,6 +193,9 @@
 								{/if}
 							</div>
 							<p class="definition">{entry.definition}</p>
+							{#if entry.example}
+								<p class="example">e.g. {entry.example}</p>
+							{/if}
 							{#if entry.episode_title || entry.source_time != null}
 								<a class="source-line" href={sourceHref(entry)} aria-label={`Open source for ${entry.word}`}>
 									<Film size={12} aria-hidden="true" />
@@ -468,6 +471,13 @@
 	.definition {
 		font-size: 14px;
 		color: var(--gray11);
+		line-height: 1.5;
+	}
+	.example {
+		font-size: 13px;
+		color: var(--gray9);
+		font-style: italic;
+		margin-top: 4px;
 		line-height: 1.5;
 	}
 
