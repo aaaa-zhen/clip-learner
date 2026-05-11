@@ -432,7 +432,34 @@
 	}
 
 	@media (max-width: 560px) {
-		.notebook-page { padding: 0 16px 60px; }
-		.icon-btn { opacity: 1; }
+		.notebook-page { padding: 0 12px 60px; }
+
+		header { flex-wrap: wrap; gap: 8px; padding: 16px 0 12px; }
+
+		h1 { font-size: 18px; }
+
+		.toolbar { flex-wrap: wrap; }
+		.search-box { flex: 1 1 100%; }
+		.export-btn { flex: 1 1 auto; justify-content: center; }
+
+		.entry { flex-wrap: wrap; gap: 10px; padding: 12px; }
+		.entry-word strong { font-size: 15px; }
+		.definition { font-size: 13px; }
+
+		.entry-actions {
+			width: 100%;
+			justify-content: flex-end;
+			gap: 8px;
+			border-top: 1px solid var(--border);
+			padding-top: 8px;
+			margin-top: 2px;
+		}
+		.icon-btn {
+			opacity: 1;
+			width: 40px;
+			height: 40px;
+		}
+
+		.source-line { font-size: 11px; }
 	}
 </style>
