@@ -148,24 +148,31 @@
 		</div>
 
 		{#if sources.length > 1}
-			<div class="source-filters">
-				<button
-					class="source-chip"
-					class:active={activeSource === null}
-					onclick={() => activeSource = null}
-				>
-					All <span class="source-count">{entries.length}</span>
-				</button>
-				{#each sources as src}
+			<div class="source-filter-wrap">
+				<span class="source-label">
+					<Film size={12} aria-hidden="true" />
+					From
+				</span>
+				<div class="source-filters">
 					<button
 						class="source-chip"
-						class:active={activeSource === src.title}
-						onclick={() => activeSource = activeSource === src.title ? null : src.title}
+						class:active={activeSource === null}
+						onclick={() => activeSource = null}
 					>
-						{src.title.length > 30 ? src.title.slice(0, 28) + '…' : src.title}
-						<span class="source-count">{src.count}</span>
+						All clips <span class="source-count">{entries.length}</span>
 					</button>
-				{/each}
+					{#each sources as src}
+						<button
+							class="source-chip"
+							class:active={activeSource === src.title}
+							onclick={() => activeSource = activeSource === src.title ? null : src.title}
+							title={src.title}
+						>
+							{src.title.length > 24 ? src.title.slice(0, 22) + '…' : src.title}
+							<span class="source-count">{src.count}</span>
+						</button>
+					{/each}
+				</div>
 			</div>
 		{/if}
 
@@ -356,10 +363,25 @@
 		box-shadow: 0 0 0 3px var(--accent-soft);
 	}
 
+	.source-filter-wrap {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		margin-bottom: 16px;
+	}
+	.source-label {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		font-size: 12px;
+		font-weight: 500;
+		color: var(--gray9);
+		flex-shrink: 0;
+		white-space: nowrap;
+	}
 	.source-filters {
 		display: flex;
 		gap: 6px;
-		margin-bottom: 16px;
 		overflow-x: auto;
 		-webkit-overflow-scrolling: touch;
 		scrollbar-width: none;
