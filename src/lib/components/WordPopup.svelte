@@ -191,6 +191,27 @@
 		}
 	}
 
+	/** Extract the sentence containing the word, max ~120 chars */
+	function trimSourceText(line: string, word: string): string {
+		if (!line || line.length <= 120) return line;
+		// Try to find the sentence containing the word
+		const lower = line.toLowerCase();
+		const idx = lower.indexOf(word.toLowerCase());
+		if (idx >= 0) {
+			// Expand around the word to find sentence boundaries
+			let start = line.lastIndexOf('.', idx);
+			if (start === -1) start = line.lastIndexOf(',', idx);
+			start = start === -1 ? 0 : start + 1;
+			let end = line.indexOf('.', idx + word.length);
+			if (end === -1) end = line.indexOf(',', idx + word.length);
+			end = end === -1 ? line.length : end + 1;
+			const snippet = line.slice(start, end).trim();
+			if (snippet.length <= 120) return snippet;
+		}
+		// Fallback: just truncate
+		return line.slice(0, 117).trim() + '…';
+	}
+
 	async function saveWord() {
 		if (!word || !entry.definition) return;
 		try {
@@ -202,7 +223,7 @@
 					definition: entry.definition,
 					example: entry.example || '',
 					phonetic: entry.phonetic || '',
-					source_text: lookupContext?.currentLine || '',
+					source_text: trimSourceText(lookupContext?.currentLine || '', word),
 					episode_id: episodeId || null,
 					source_time: episodeId ? lookupContext?.sourceTime ?? $currentTime : null,
 					category: entry.partOfSpeech || 'general'
