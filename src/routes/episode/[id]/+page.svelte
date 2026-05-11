@@ -1424,15 +1424,14 @@
 		overflow-x: hidden;
 		background: var(--gray1);
 		display: flex;
-		align-items: center;
-		justify-content: center;
+		flex-direction: column;
 	}
 
 	.stage-inner {
 		width: 100%;
 		max-width: clamp(600px, 75vw, 960px);
-		margin: 0 auto;
-		padding: clamp(16px, 2vw, 32px) clamp(16px, 2.5vw, 28px);
+		margin: clamp(16px, 4vh, 48px) auto 0;
+		padding: 0 clamp(16px, 2.5vw, 28px) clamp(20px, 2.5vw, 40px);
 		display: flex;
 		flex-direction: column;
 		gap: clamp(6px, 0.8vw, 12px);
@@ -1441,10 +1440,7 @@
 	@media (max-width: 600px) {
 		.stage-inner {
 			max-width: 100%;
-		}
-		.stage {
-			align-items: stretch;
-			justify-content: flex-start;
+			margin-top: 0;
 		}
 	}
 
