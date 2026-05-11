@@ -739,13 +739,23 @@
 			if (quizOpen && answered && e.key === 'Enter') nextQuestion();
 		};
 		window.addEventListener('keydown', handleKey);
+		// Retry seeking until the player is ready (YouTube iframe can take 2-4s)
+		let seekRetries = 0;
 		const initialSeekTimer =
 			startTime !== null && Number.isFinite(startTime) && startTime >= 0
-				? setTimeout(() => videoPlayer?.seekTo(startTime), 800)
+				? setInterval(() => {
+					seekRetries++;
+					if (videoPlayer?.seekTo) {
+						videoPlayer.seekTo(startTime);
+						clearInterval(initialSeekTimer!);
+					} else if (seekRetries > 20) {
+						clearInterval(initialSeekTimer!);
+					}
+				}, 500)
 				: null;
 		return () => {
 			window.removeEventListener('keydown', handleKey);
-			if (initialSeekTimer) clearTimeout(initialSeekTimer);
+			if (initialSeekTimer) clearInterval(initialSeekTimer);
 			clearDownloadPolling();
 			clearProcessPolling();
 		};
