@@ -21,9 +21,11 @@ No test framework is configured.
 - Node.js 22.5+ (required for built-in `node:sqlite`)
 - npm
 - `yt-dlp` on PATH (used for subtitle and video download)
+- `ffmpeg` and `ffprobe` on PATH (audio conversion and duration detection)
 - `.env` with `ANTHROPIC_API_KEY` (and optionally `ANTHROPIC_BASE_URL`)
-- Optional: `whisper` CLI on PATH for local transcription, or `WHISPER_API_KEY` for API-based transcription
+- Optional: `whisper` CLI on PATH for local transcription, or `WHISPER_API_KEY` for API-based transcription (also supports `WHISPER_BASE_URL`, `WHISPER_MODEL`, `WHISPER_LOCAL_MODEL`)
 - SQLite database auto-created at `data/app.db` on first run
+- Downloaded media stored in `media/<youtube_id>/`
 
 ## Architecture
 
