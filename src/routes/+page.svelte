@@ -8,10 +8,42 @@
 		Youtube, ArrowRight, PlayCircle,
 		Clock, CheckCircle2, Loader2, AlertCircle, Trash2,
 		BookMarked, Plus, Clapperboard, RotateCcw, Settings, LogOut,
-		Headphones, MousePointerClick, BrainCircuit, FileText, BookOpen, Link
+		Headphones, MousePointerClick, BrainCircuit, FileText, BookOpen, Link,
+		Sun, Moon, Monitor
 	} from 'lucide-svelte';
 	import SettingsModal from '$lib/components/SettingsModal.svelte';
 	import { authModalOpen } from '$lib/stores/auth';
+	import { themeMode } from '$lib/stores/theme';
+	import type { ThemeMode } from '$lib/stores/theme';
+
+	let themeMenuOpen = $state(false);
+	let themeToggleEl: HTMLButtonElement | undefined = $state();
+
+	function setTheme(mode: ThemeMode) {
+		themeMode.set(mode);
+		themeMenuOpen = false;
+		themeToggleEl?.focus();
+	}
+
+	function handleThemeMenuKeydown(e: KeyboardEvent) {
+		if (e.key === 'Escape') {
+			themeMenuOpen = false;
+			themeToggleEl?.focus();
+			e.stopPropagation();
+		}
+		if (!themeMenuOpen) return;
+		const items = (e.currentTarget as HTMLElement)?.querySelectorAll<HTMLElement>('[role="menuitemradio"]');
+		if (!items?.length) return;
+		const focused = document.activeElement as HTMLElement;
+		const idx = Array.from(items).indexOf(focused);
+		if (e.key === 'ArrowDown') {
+			e.preventDefault();
+			items[(idx + 1) % items.length].focus();
+		} else if (e.key === 'ArrowUp') {
+			e.preventDefault();
+			items[(idx - 1 + items.length) % items.length].focus();
+		}
+	}
 
 
 	let { data } = $props();
@@ -289,6 +321,46 @@ function isYouTubeUrl(u: string): boolean {
 					Notebook
 					{#if wordsSaved > 0}<span class="nav-badge">{wordsSaved}</span>{/if}
 				</a>
+			{/if}
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<div class="theme-wrap" onkeydown={handleThemeMenuKeydown}>
+				<button
+					bind:this={themeToggleEl}
+					type="button"
+					class="theme-toggle"
+					onclick={() => themeMenuOpen = !themeMenuOpen}
+					aria-expanded={themeMenuOpen}
+					aria-haspopup="true"
+					aria-label="Theme: {$themeMode}"
+				>
+					{#if $themeMode === 'light'}
+						<Sun size={14} aria-hidden="true" />
+					{:else if $themeMode === 'dark'}
+						<Moon size={14} aria-hidden="true" />
+					{:else}
+						<Monitor size={14} aria-hidden="true" />
+					{/if}
+				</button>
+				{#if themeMenuOpen}
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
+					<div class="theme-backdrop" onclick={() => themeMenuOpen = false} onkeydown={() => {}}></div>
+					<div class="theme-menu" role="menu" aria-label="Theme preference">
+						<button class="theme-option" class:active={$themeMode === 'system'} onclick={() => setTheme('system')} role="menuitemradio" aria-checked={$themeMode === 'system'}>
+							<Monitor size={14} aria-hidden="true" />
+							System
+						</button>
+						<button class="theme-option" class:active={$themeMode === 'light'} onclick={() => setTheme('light')} role="menuitemradio" aria-checked={$themeMode === 'light'}>
+							<Sun size={14} aria-hidden="true" />
+							Light
+						</button>
+						<button class="theme-option" class:active={$themeMode === 'dark'} onclick={() => setTheme('dark')} role="menuitemradio" aria-checked={$themeMode === 'dark'}>
+							<Moon size={14} aria-hidden="true" />
+							Dark
+						</button>
+					</div>
+				{/if}
+			</div>
+			{#if data.user}
 				<button
 					type="button"
 					class="theme-toggle"
@@ -297,8 +369,6 @@ function isYouTubeUrl(u: string): boolean {
 				>
 					<Settings size={14} aria-hidden="true" />
 				</button>
-			{/if}
-				{#if data.user}
 				<button type="button" class="user-chip" title="Log out" onclick={handleLogout}>
 					{data.user.username}
 					<LogOut size={12} aria-hidden="true" />
@@ -550,36 +620,28 @@ function isYouTubeUrl(u: string): boolean {
 
 <style>
 	.page {
-		max-width: clamp(560px, 70vw, 1000px);
+		max-width: clamp(560px, 70vw, 940px);
 		margin: 0 auto;
 		padding: 0 clamp(16px, 3vw, 40px) 80px;
 	}
 
 	@media (max-width: 560px) {
-		.page {
-			max-width: 100%;
-		}
+		.page { max-width: 100%; }
 	}
 
 	.sr-only {
 		position: absolute;
-		width: 1px;
-		height: 1px;
-		padding: 0;
-		margin: -1px;
-		overflow: hidden;
-		clip: rect(0, 0, 0, 0);
-		white-space: nowrap;
-		border: 0;
+		width: 1px; height: 1px; padding: 0; margin: -1px;
+		overflow: hidden; clip: rect(0, 0, 0, 0);
+		white-space: nowrap; border: 0;
 	}
 
-	/* Top nav */
+	/* ── Top nav ── */
 	.topnav {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		padding: 16px 0 0;
-		margin-bottom: 0;
+		padding: 20px 0 0;
 	}
 
 	.brand {
@@ -588,8 +650,10 @@ function isYouTubeUrl(u: string): boolean {
 		gap: 8px;
 		font-size: 15px;
 		font-weight: 600;
-		color: var(--text);
+		color: var(--gray12);
 		letter-spacing: -0.01em;
+		white-space: nowrap;
+		flex-shrink: 0;
 	}
 
 	.nav-right {
@@ -604,16 +668,17 @@ function isYouTubeUrl(u: string): boolean {
 		gap: 6px;
 		padding: 7px 14px;
 		border-radius: var(--radius-pill);
-		border: 1px solid var(--border);
-		font-size: 12px;
-		color: var(--text-muted);
+		border: none;
+		font-size: 13px;
+		color: var(--gray11);
 		background: transparent;
-		transition: border-color 0.15s, color 0.15s;
+		text-decoration: none;
+		transition: color var(--duration-fast) var(--ease), background var(--duration-fast) var(--ease);
 		position: relative;
 	}
 	.nav-link:hover {
-		color: var(--text);
-		border-color: #333;
+		color: var(--gray12);
+		background: var(--gray3);
 		text-decoration: none;
 	}
 
@@ -621,8 +686,7 @@ function isYouTubeUrl(u: string): boolean {
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		min-width: 18px;
-		height: 18px;
+		min-width: 18px; height: 18px;
 		padding: 0 5px;
 		border-radius: var(--radius-pill);
 		background: var(--accent);
@@ -632,25 +696,68 @@ function isYouTubeUrl(u: string): boolean {
 		line-height: 1;
 	}
 
+	.theme-wrap {
+		position: relative;
+	}
 	.theme-toggle {
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		width: 34px;
-		height: 34px;
+		width: 34px; height: 34px;
 		border-radius: 50%;
-		border: 1px solid var(--border);
+		border: none;
 		background: transparent;
-		color: var(--text-muted);
-		transition: border-color 0.15s, color 0.15s;
+		color: var(--gray9);
+		transition: color var(--duration-fast) var(--ease), background var(--duration-fast) var(--ease);
 	}
-	.theme-toggle:hover {
-		border-color: #333;
-		color: var(--text);
+	.theme-toggle:hover { background: var(--gray3); color: var(--gray12); }
+	.theme-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+	.theme-backdrop {
+		position: fixed;
+		inset: 0;
+		z-index: 99;
 	}
-	.theme-toggle:focus-visible {
-		outline: 2px solid var(--accent);
-		outline-offset: 2px;
+	.theme-menu {
+		position: absolute;
+		top: calc(100% + 6px);
+		right: 0;
+		z-index: 100;
+		background: var(--bg-card);
+		border: 1px solid var(--grayA2);
+		border-radius: var(--radius-md);
+		box-shadow: var(--shadow-lg);
+		padding: 4px;
+		min-width: 140px;
+		animation: menuIn var(--duration-fast) var(--ease);
+	}
+	@keyframes menuIn {
+		from { opacity: 0; transform: translateY(-4px) scale(0.97); }
+		to   { opacity: 1; transform: translateY(0) scale(1); }
+	}
+	.theme-option {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		width: 100%;
+		padding: 8px 12px;
+		border-radius: var(--radius-sm);
+		font-size: 13px;
+		font-weight: 500;
+		color: var(--gray11);
+		background: none;
+		border: none;
+		cursor: pointer;
+		transition: background var(--duration-fast) var(--ease), color var(--duration-fast) var(--ease);
+	}
+	.theme-option:hover { background: var(--gray3); color: var(--gray12); }
+	.theme-option.active { color: var(--gray12); font-weight: 600; }
+	.theme-option.active::after {
+		content: '';
+		width: 5px; height: 5px;
+		border-radius: 50%;
+		background: var(--accent);
+		margin-left: auto;
 	}
 
 	.user-chip {
@@ -659,112 +766,109 @@ function isYouTubeUrl(u: string): boolean {
 		gap: 6px;
 		padding: 7px 14px;
 		border-radius: var(--radius-pill);
-		border: 1px solid var(--border);
-		background: transparent;
+		border: none;
+		background: var(--gray3);
 		font-size: 12px;
 		font-weight: 500;
-		color: var(--text-muted);
+		color: var(--gray11);
 		cursor: pointer;
-		transition: color 0.15s, border-color 0.15s;
+		transition: color var(--duration-fast) var(--ease), background var(--duration-fast) var(--ease);
 	}
-	.user-chip:hover {
-		color: var(--red);
-		border-color: rgba(199, 69, 69, 0.4);
-	}
+	.user-chip:hover { color: var(--red); background: var(--gray4); }
 
+	.signin-btn {
+		display: inline-flex;
+		align-items: center;
+		padding: 7px 18px;
+		border-radius: var(--radius-pill);
+		border: none;
+		background: hsl(222 80% 55%);
+		color: #fff;
+		font-size: 13px;
+		font-weight: 600;
+		cursor: pointer;
+		box-shadow: 0 1px 3px hsla(222 80% 40% / 0.25);
+		transition: background var(--duration-fast) var(--ease);
+	}
+	.signin-btn:hover { background: hsl(222 80% 50%); }
+
+	/* ── Features ── */
 	.features {
 		display: flex;
-		gap: 16px;
-		margin: 32px 0 40px;
+		gap: 12px;
+		margin: 36px 0 44px;
 		justify-content: center;
 	}
 	.feature {
 		flex: 1;
 		max-width: 220px;
-		padding: 18px;
-		border-radius: 14px;
-		border: 1px solid var(--border);
+		padding: 20px;
+		border-radius: var(--radius-md);
+		border: 1px solid var(--grayA2);
 		background: var(--bg-card);
 		text-align: left;
+		box-shadow: var(--shadow-sm);
 	}
 	.feature-icon {
-		width: 32px;
-		height: 32px;
-		border-radius: 8px;
-		border: 1px solid var(--border);
-		background: var(--bg-subtle);
+		width: 34px; height: 34px;
+		border-radius: var(--radius-sm);
+		background: var(--gray3);
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		color: var(--accent);
-		margin-bottom: 12px;
+		margin-bottom: 14px;
 	}
 	.feature strong {
 		display: block;
 		font-weight: 600;
 		font-size: 13px;
+		color: var(--gray12);
 		margin-bottom: 4px;
 	}
 	.feature-desc {
 		display: block;
 		font-size: 12px;
-		color: var(--text-light);
+		color: var(--gray9);
 		line-height: 1.5;
 	}
 
-	.signin-btn {
-		display: inline-flex;
-		align-items: center;
-		padding: 7px 16px;
-		border-radius: var(--radius-pill);
-		border: 1px solid var(--accent);
-		background: var(--accent);
-		color: #fff;
-		font-size: 12px;
-		font-weight: 600;
-		cursor: pointer;
-		transition: all 0.15s;
-	}
-	.signin-btn:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
-
-	/* Hero */
+	/* ── Hero ── */
 	.hero {
-		margin-top: clamp(60px, 12vh, 140px);
-		margin-bottom: 48px;
+		margin-top: clamp(64px, 14vh, 160px);
+		margin-bottom: 56px;
 		text-align: center;
 	}
 
 	.hero h1 {
 		font-family: var(--font-display);
-		font-size: 52px;
-		line-height: 1.08;
-		letter-spacing: -0.03em;
-		font-weight: 700;
-		margin-bottom: 18px;
+		font-size: clamp(36px, 5vw, 56px);
+		line-height: 1.1;
+		letter-spacing: -0.3px;
+		font-weight: 500;
+		margin-bottom: 20px;
 		text-wrap: balance;
+		color: var(--gray12);
 	}
 	.hero h1 em {
 		font-style: italic;
-		background: linear-gradient(135deg, var(--accent), #e8a66a);
-		-webkit-background-clip: text;
-		-webkit-text-fill-color: transparent;
 	}
 
 	.lede {
 		font-size: 15px;
-		color: var(--text-muted);
-		max-width: 480px;
-		margin: 0 auto 28px;
-		line-height: 1.7;
+		color: var(--gray11);
+		max-width: 460px;
+		margin: 0 auto 32px;
+		line-height: 28px;
 	}
 
-	/* How it works */
+	/* ── How it works ── */
 	.how-it-works {
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		gap: 8px;
-		margin-top: 28px;
+		gap: 10px;
+		margin-top: 32px;
 	}
 	.step {
 		display: flex;
@@ -772,39 +876,38 @@ function isYouTubeUrl(u: string): boolean {
 		gap: 8px;
 	}
 	.step-num {
-		width: 22px;
-		height: 22px;
+		width: 22px; height: 22px;
 		border-radius: 50%;
-		border: 1px solid var(--border);
+		border: 1px solid var(--gray5);
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		font-size: 11px;
 		font-weight: 600;
-		color: var(--text-muted);
+		color: var(--gray9);
 		flex-shrink: 0;
 	}
 	.step-text {
 		font-size: 12px;
-		color: var(--text-muted);
+		color: var(--gray9);
 	}
 	.step-arrow {
-		color: var(--text-light);
+		color: var(--gray7);
 		display: flex;
 		align-items: center;
 	}
 
-	/* Input box */
+	/* ── Input box ── */
 	.input-box {
-		background: var(--bg-card);
-		border: 1px solid var(--border);
-		border-radius: 14px;
+		background: var(--gray2);
+		border: 1px solid var(--gray4);
+		border-radius: var(--radius-md);
 		overflow: hidden;
-		transition: border-color 0.3s, box-shadow 0.3s;
+		transition: border-color var(--duration-normal) var(--ease), box-shadow var(--duration-normal) var(--ease);
 	}
 	.input-box:focus-within {
-		border-color: rgba(32, 184, 205, 0.4);
-		box-shadow: 0 0 0 3px rgba(32, 184, 205, 0.08), 0 0 20px rgba(32, 184, 205, 0.06);
+		border-color: var(--accent);
+		box-shadow: 0 0 0 3px var(--accent-soft);
 	}
 
 	.input-row {
@@ -827,38 +930,37 @@ function isYouTubeUrl(u: string): boolean {
 		font: inherit;
 		font-size: 15px;
 		padding: 12px 0;
-		color: var(--text);
+		color: var(--gray12);
 		min-width: 0;
 	}
-	.input-row input::placeholder {
-		color: var(--text-light);
-	}
+	.input-row input::placeholder { color: var(--gray8); }
 
 	.submit-btn {
 		display: inline-flex;
 		align-items: center;
 		gap: 6px;
-		padding: 10px 20px;
-		border-radius: 10px;
-		background: var(--accent);
+		padding: 12px 26px;
+		border-radius: var(--radius-pill);
+		background: hsl(222 80% 55%);
 		color: #fff;
 		font-size: 13px;
 		font-weight: 600;
 		border: none;
-		transition: background 0.15s, opacity 0.15s;
+		box-shadow: 0 1px 3px hsla(222 80% 40% / 0.3), inset 0 1px 0 hsla(0 0% 100% / 0.15);
+		transition: background var(--duration-fast) var(--ease), box-shadow var(--duration-fast) var(--ease), transform var(--duration-fast) var(--ease);
 		white-space: nowrap;
 		flex-shrink: 0;
 	}
 	.submit-btn:hover:not(:disabled) {
-		background: var(--accent-hover);
+		background: hsl(222 80% 50%);
+		box-shadow: 0 2px 8px hsla(222 80% 40% / 0.35), inset 0 1px 0 hsla(0 0% 100% / 0.15);
+		transform: translateY(-0.5px);
 	}
-	.submit-btn:disabled {
-		opacity: 0.45;
-		cursor: not-allowed;
-	}
+	.submit-btn:active:not(:disabled) { transform: translateY(0); box-shadow: 0 1px 2px hsla(222 80% 40% / 0.3); }
+	.submit-btn:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
 
 	.input-error {
-		margin-top: 8px;
+		margin-top: 10px;
 		font-size: 13px;
 		color: var(--red);
 		display: flex;
@@ -866,36 +968,25 @@ function isYouTubeUrl(u: string): boolean {
 		gap: 5px;
 	}
 
-	/* Clips section */
-	.clips-section {
-		margin-top: 48px;
-	}
-
-	.article-section {
-		margin-top: 40px;
-	}
-
-	.article-input-wrap {
-		margin-bottom: 24px;
-	}
+	/* ── Sections ── */
+	.clips-section { margin-top: 56px; }
+	.article-section { margin-top: 48px; }
+	.article-input-wrap { margin-bottom: 28px; }
 
 	.article-hint {
-		margin: 8px 0 0;
-		font-size: 12.5px;
-		color: var(--text-muted);
+		margin: 10px 0 0;
+		font-size: 13px;
+		color: var(--gray9);
 	}
-	.article-hint-link {
-		color: var(--accent);
-		text-decoration: none;
-	}
+	.article-hint-link { color: var(--accent); }
 	.article-hint-link:hover { text-decoration: underline; }
 
 	.source-chip {
 		font-size: 11px;
 		font-weight: 600;
-		color: var(--text-muted);
-		background: var(--bg-dark);
-		padding: 1px 6px;
+		color: var(--gray11);
+		background: var(--gray3);
+		padding: 1px 7px;
 		border-radius: var(--radius-pill);
 	}
 
@@ -903,36 +994,35 @@ function isYouTubeUrl(u: string): boolean {
 		display: flex;
 		align-items: center;
 		gap: 10px;
-		margin-bottom: 14px;
+		margin-bottom: 16px;
 	}
 	.section-header::after {
 		content: '';
 		flex: 1;
 		height: 1px;
-		background: var(--border-light);
+		background: var(--gray3);
 	}
-
 	.section-header h2 {
-		font-size: 10px;
+		font-size: 11px;
 		font-weight: 500;
-		letter-spacing: 0.12em;
+		letter-spacing: 0.1em;
 		text-transform: uppercase;
-		color: var(--text-light);
+		color: var(--gray9);
 	}
-
 	.section-count {
-		font-size: 10px;
-		color: var(--text-light);
-		border: 1px solid var(--border);
+		font-size: 11px;
+		color: var(--gray9);
+		border: 1px solid var(--gray4);
 		border-radius: var(--radius-pill);
 		padding: 2px 8px;
 		font-variant-numeric: tabular-nums;
 	}
 
-	/* Clips list */
+	/* ── Clips list ── */
 	.clips {
 		display: flex;
 		flex-direction: column;
+		gap: 6px;
 	}
 
 	.clip {
@@ -941,57 +1031,39 @@ function isYouTubeUrl(u: string): boolean {
 		gap: 14px;
 		align-items: center;
 		padding: 14px 18px;
-		border: 1px solid var(--border-light);
-		border-radius: 12px;
-		background: var(--bg-card);
-		cursor: pointer;
-		transition: border-color 0.15s, background 0.15s, color 0.15s;
-		position: relative;
-		margin-bottom: 8px;
-	}
-	.clip:last-child {
-		margin-bottom: 0;
-	}
-	.clip:hover {
-		border-color: var(--border);
-		background: var(--bg-subtle);
-	}
-	.clip.disabled {
-		cursor: default;
-	}
-	.clip.disabled:hover {
+		border: 1px solid transparent;
+		border-radius: var(--radius-md);
 		background: transparent;
+		cursor: pointer;
+		transition: background var(--duration-fast) var(--ease);
+		position: relative;
 	}
+	.clip:hover { background: var(--gray2); }
+	.clip.disabled { cursor: default; }
+	.clip.disabled:hover { background: transparent; }
 
 	.clip-link {
 		position: absolute;
 		inset: 0;
 		z-index: 1;
-		border-radius: var(--radius-sm);
+		border-radius: var(--radius-md);
 	}
-	.clip-link:focus-visible {
-		outline: 2px solid var(--accent);
-		outline-offset: -2px;
-	}
+	.clip-link:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
 	.clip-icon {
-		width: 36px;
-		height: 36px;
+		width: 36px; height: 36px;
 		border-radius: 50%;
-		border: 1px solid var(--border);
-		background: var(--bg-subtle);
+		background: var(--gray3);
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		color: var(--text-light);
+		color: var(--gray9);
 		position: relative;
 		z-index: 2;
 		flex-shrink: 0;
 		pointer-events: none;
 	}
-	.clip.disabled .clip-icon {
-		opacity: 0.5;
-	}
+	.clip.disabled .clip-icon { opacity: 0.5; }
 
 	.clip-body {
 		min-width: 0;
@@ -1003,13 +1075,13 @@ function isYouTubeUrl(u: string): boolean {
 	.clip-title {
 		font-size: 14px;
 		font-weight: 500;
-		color: var(--text);
+		color: var(--gray12);
 		letter-spacing: -0.005em;
 		line-height: 1.4;
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
-		margin-bottom: 3px;
+		margin-bottom: 2px;
 	}
 
 	.clip-meta {
@@ -1017,12 +1089,10 @@ function isYouTubeUrl(u: string): boolean {
 		align-items: center;
 		gap: 5px;
 		font-size: 12px;
-		color: var(--text-light);
+		color: var(--gray9);
 	}
 
-	.meta-sep {
-		opacity: 0.4;
-	}
+	.meta-sep { opacity: 0.4; }
 
 	.status-chip {
 		display: inline-flex;
@@ -1031,15 +1101,9 @@ function isYouTubeUrl(u: string): boolean {
 		font-size: 11px;
 		font-weight: 500;
 	}
-	.status-chip.ready {
-		color: var(--green);
-	}
-	.status-chip.processing {
-		color: var(--text-light);
-	}
-	.status-chip.err {
-		color: var(--red);
-	}
+	.status-chip.ready { color: var(--green); }
+	.status-chip.processing { color: var(--gray9); }
+	.status-chip.err { color: var(--red); }
 
 	.clip-actions {
 		display: flex;
@@ -1058,134 +1122,100 @@ function isYouTubeUrl(u: string): boolean {
 		color: var(--accent);
 		padding: 5px 12px;
 		border-radius: var(--radius-pill);
-		border: 1px solid var(--border);
+		border: 1px solid var(--gray4);
 		background: transparent;
 		white-space: nowrap;
-		transition: all 0.15s;
+		transition: border-color var(--duration-fast) var(--ease);
 	}
-	.clip:hover .resume-btn {
-		border-color: rgba(32, 184, 205, 0.4);
-	}
-	.resume-btn:hover {
-		text-decoration: none;
-	}
+	.clip:hover .resume-btn { border-color: var(--gray6); }
+	.resume-btn:hover { text-decoration: none; }
 
 	.delete-btn {
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		width: 30px;
-		height: 30px;
+		width: 30px; height: 30px;
 		border-radius: var(--radius-sm);
-		color: var(--text-light);
+		color: var(--gray8);
 		background: none;
 		border: none;
-		transition: background 0.12s, color 0.12s;
+		transition: background var(--duration-fast) var(--ease), color var(--duration-fast) var(--ease);
 		opacity: 0;
 	}
-	.clip:hover .delete-btn {
-		opacity: 1;
-	}
-	.delete-btn:hover {
-		background: var(--bg-dark);
-		color: var(--red);
-	}
+	.clip:hover .delete-btn,
+	.clip:focus-within .delete-btn { opacity: 1; }
+	.delete-btn:hover { background: var(--gray3); color: var(--red); }
 
-	/* Footer */
+	/* ── Footer ── */
 	footer {
-		margin-top: 64px;
-		padding-top: 20px;
-		border-top: 1px solid var(--border-light);
+		margin-top: 72px;
+		padding-top: 24px;
+		border-top: 1px solid var(--gray3);
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
 		gap: 12px;
 	}
-
 	.footer-brand {
 		font-size: 12px;
-		color: var(--text-light);
+		color: var(--gray8);
 	}
-
 	.footer-stats {
 		display: flex;
-		gap: 16px;
+		gap: 20px;
 		font-size: 12px;
-		color: var(--text-light);
+		color: var(--gray8);
 	}
-	.footer-stats b {
-		color: var(--text);
-		font-weight: 600;
-	}
+	.footer-stats b { color: var(--gray12); font-weight: 600; }
 
-	:global(.spin) {
-		animation: spin 1.2s linear infinite;
-	}
-	@keyframes spin {
-		to { transform: rotate(360deg); }
-	}
+	:global(.spin) { animation: spin 1.2s linear infinite; }
+	@keyframes spin { to { transform: rotate(360deg); } }
 
+	/* ── Mobile ── */
 	@media (max-width: 560px) {
-		.page {
-			padding: 0 16px 60px;
-		}
-		.topnav {
-			margin-bottom: 0;
-		}
-		.nav-right { gap: 4px; }
-		.nav-link { padding: 6px 10px; font-size: 11px; }
+		.page { padding: 0 16px 60px; }
+		.topnav { gap: 8px; }
+		.brand { font-size: 14px; gap: 6px; }
+		.nav-right { gap: 2px; }
+		.nav-link { padding: 6px 8px; font-size: 0; }
+		.nav-link :global(svg) { width: 16px; height: 16px; }
 		.nav-badge { min-width: 16px; height: 16px; font-size: 9px; }
-		.theme-toggle { width: 30px; height: 30px; }
-		.user-chip { padding: 6px 10px; font-size: 11px; }
-		.hero {
-			margin-top: 48px;
-		}
-		.hero h1 {
-			font-size: 32px;
-		}
-		.lede {
-			font-size: 14px;
-		}
-		.features {
-			display: none;
-		}
-		.how-it-works {
-			display: none;
-		}
+		.theme-toggle { width: 32px; height: 32px; }
+		.user-chip { padding: 6px 8px; font-size: 0; }
+		.user-chip :global(svg) { width: 14px; height: 14px; }
+		.signin-btn { padding: 7px 14px; font-size: 12px; }
+		.hero { margin-top: 48px; }
+		.lede { font-size: 14px; }
+		.features { display: none; }
+		.how-it-works { display: none; }
 		.clip {
 			grid-template-columns: 28px 1fr;
 			padding: 12px 14px;
 		}
-		.clip-actions {
-			grid-column: 2;
-		}
-		.delete-btn,
-		.resume-btn {
-			opacity: 1;
-		}
+		.clip-actions { grid-column: 2; }
+		.delete-btn, .resume-btn { opacity: 1; }
 	}
 
-	/* Delete confirmation modal */
+	/* ── Delete modal ── */
 	.del-backdrop {
 		position: fixed;
 		inset: 0;
-		background: rgba(0, 0, 0, 0.5);
+		background: hsla(0 0% 0% / 0.6);
 		z-index: 900;
-		backdrop-filter: blur(2px);
+		backdrop-filter: blur(6px);
 	}
 	.del-modal {
 		position: fixed;
-		top: 50%;
-		left: 50%;
+		top: 50%; left: 50%;
 		transform: translate(-50%, -50%);
 		z-index: 901;
-		background: var(--bg-card);
-		border: 1px solid var(--border);
+		background: var(--gray2);
+		border: 1px solid var(--gray4);
 		border-radius: var(--radius-lg);
-		padding: 24px 24px 20px;
+		padding: 24px;
 		width: min(360px, 90vw);
-		box-shadow: 0 16px 48px rgba(0, 0, 0, 0.25);
-		animation: delIn 0.15s ease-out;
+		box-shadow: var(--shadow-lg);
+		animation: delIn var(--duration-fast) var(--ease);
 	}
 	@keyframes delIn {
 		from { opacity: 0; transform: translate(-50%, -48%); }
@@ -1194,12 +1224,12 @@ function isYouTubeUrl(u: string): boolean {
 	.del-title {
 		font-size: 15px;
 		font-weight: 600;
-		color: var(--text);
+		color: var(--gray12);
 		margin: 0 0 6px;
 	}
 	.del-sub {
 		font-size: 13px;
-		color: var(--text-muted);
+		color: var(--gray11);
 		margin: 0 0 20px;
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -1211,30 +1241,27 @@ function isYouTubeUrl(u: string): boolean {
 		gap: 8px;
 	}
 	.del-cancel {
-		padding: 7px 16px;
-		border-radius: var(--radius-pill);
-		border: 1px solid var(--border);
+		padding: 8px 18px;
+		border-radius: var(--radius-sm);
+		border: 1px solid var(--gray4);
 		background: transparent;
 		font-size: 13px;
 		font-weight: 500;
-		color: var(--text-muted);
+		color: var(--gray11);
 		cursor: pointer;
-		transition: border-color 0.12s, color 0.12s;
+		transition: color var(--duration-fast) var(--ease), background var(--duration-fast) var(--ease);
 	}
-	.del-cancel:hover {
-		border-color: var(--border);
-		color: var(--text);
-	}
+	.del-cancel:hover { background: var(--gray3); color: var(--gray12); }
 	.del-confirm {
-		padding: 7px 16px;
-		border-radius: var(--radius-pill);
+		padding: 8px 18px;
+		border-radius: var(--radius-sm);
 		border: none;
 		background: var(--red);
 		font-size: 13px;
 		font-weight: 500;
 		color: #fff;
 		cursor: pointer;
-		transition: opacity 0.12s;
+		transition: opacity var(--duration-fast) var(--ease);
 	}
 	.del-confirm:hover { opacity: 0.85; }
 </style>

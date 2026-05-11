@@ -201,6 +201,7 @@
 					word,
 					definition: entry.definition,
 					example: entry.example || '',
+					phonetic: entry.phonetic || '',
 					episode_id: episodeId || null,
 					source_time: episodeId ? lookupContext?.sourceTime ?? $currentTime : null,
 					category: entry.partOfSpeech || 'general'
@@ -225,7 +226,7 @@
 			toastTimer = setTimeout(() => { toastVisible = false; }, 2500);
 			// Notify episode page to increment count + update notebook drawer
 			window.dispatchEvent(new CustomEvent('word:saved', {
-				detail: { word, definition: entry.definition, example: entry.example, category: 'vocabulary', source_time: episodeId ? lookupContext?.sourceTime ?? $currentTime : null }
+				detail: { word, definition: entry.definition, example: entry.example, phonetic: entry.phonetic || '', category: entry.partOfSpeech || 'general', source_time: episodeId ? lookupContext?.sourceTime ?? $currentTime : null }
 			}));
 			window.getSelection()?.removeAllRanges();
 		} catch {

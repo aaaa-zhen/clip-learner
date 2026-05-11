@@ -18,7 +18,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 };
 
 export const POST: RequestHandler = async ({ request, locals }) => {
-	const { word, definition, example, episode_id, source_time, category } = await request.json();
+	const { word, definition, example, phonetic, episode_id, source_time, category } = await request.json();
 
 	if (!word) {
 		return json({ error: 'word is required' }, { status: 400 });
@@ -36,8 +36,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	const sourceTime = Number(source_time);
 	const normalizedSourceTime = Number.isFinite(sourceTime) && sourceTime >= 0 ? sourceTime : null;
 	const { rows: [row] } = await query(
-		'INSERT INTO vocab_notebook (word, definition, example, episode_id, source_time, category, user_id) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
-		[word, definition, example, episode_id || null, normalizedSourceTime, category || 'general', locals.user!.id]
+		'INSERT INTO vocab_notebook (word, definition, example, phonetic, episode_id, source_time, category, user_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id',
+		[word, definition, example, phonetic || '', episode_id || null, normalizedSourceTime, category || 'general', locals.user!.id]
 	);
 
 	return json({ id: row.id });

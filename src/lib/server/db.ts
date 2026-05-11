@@ -78,6 +78,7 @@ function initSchema() {
 			word        TEXT NOT NULL,
 			definition  TEXT,
 			example     TEXT,
+			phonetic    TEXT DEFAULT '',
 			episode_id  TEXT,
 			source_time REAL,
 			category    TEXT,
@@ -116,6 +117,10 @@ function initSchema() {
 
 	try {
 		db.exec('ALTER TABLE vocab_notebook ADD COLUMN source_time REAL');
+	} catch { /* column already exists */ }
+
+	try {
+		db.exec("ALTER TABLE vocab_notebook ADD COLUMN phonetic TEXT DEFAULT ''");
 	} catch { /* column already exists */ }
 
 	db.exec(`

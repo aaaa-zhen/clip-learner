@@ -36,15 +36,16 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		background: var(--bg);
+		background: var(--gray1);
 		padding: 24px;
 	}
 	.auth-card {
 		width: min(400px, 100%);
-		background: var(--bg-card);
-		border: 1px solid var(--border);
+		background: var(--gray2);
+		border: 1px solid var(--gray4);
 		border-radius: var(--radius-lg);
 		padding: 40px 36px;
+		box-shadow: var(--shadow-lg);
 	}
 	.auth-logo {
 		font-size: 13px;
@@ -55,19 +56,20 @@
 		margin-bottom: 24px;
 	}
 	.auth-title {
-		font-size: 24px;
-		font-weight: 600;
+		font-family: var(--font-display);
+		font-size: 28px;
+		font-weight: 400;
 		letter-spacing: -0.02em;
-		margin-bottom: 24px;
-		color: var(--text);
+		margin-bottom: 28px;
+		color: var(--gray12);
 	}
 	.auth-error {
-		background: color-mix(in srgb, var(--red) 10%, var(--bg-card));
-		border: 1px solid color-mix(in srgb, var(--red) 30%, var(--border));
+		background: hsla(0 50% 52% / 0.08);
+		border: 1px solid hsla(0 50% 52% / 0.2);
 		color: var(--red);
 		border-radius: var(--radius-sm);
 		padding: 10px 14px;
-		font-size: 13.5px;
+		font-size: 13px;
 		margin-bottom: 16px;
 	}
 	.auth-label {
@@ -76,19 +78,24 @@
 		gap: 6px;
 		font-size: 13px;
 		font-weight: 500;
-		color: var(--text-muted);
-		margin-bottom: 14px;
+		color: var(--gray11);
+		margin-bottom: 16px;
 	}
 	.auth-input {
 		padding: 10px 12px;
-		border: 1px solid var(--border);
+		border: 1px solid var(--gray4);
 		border-radius: var(--radius-sm);
-		background: var(--bg);
-		color: var(--text);
+		background: var(--gray1);
+		color: var(--gray12);
 		font-size: 14px;
-		transition: border-color 0.15s;
+		font-family: var(--font-ui);
+		transition: border-color var(--duration-fast) var(--ease);
 	}
-	.auth-input:focus { outline: none; border-color: var(--accent); }
+	.auth-input:focus {
+		outline: none;
+		border-color: var(--accent);
+		box-shadow: 0 0 0 3px var(--accent-soft);
+	}
 	.auth-btn {
 		width: 100%;
 		padding: 11px;
@@ -100,14 +107,14 @@
 		font-size: 14px;
 		font-weight: 600;
 		cursor: pointer;
-		transition: background 0.15s;
+		transition: background var(--duration-fast) var(--ease);
 	}
 	.auth-btn:hover { background: var(--accent-hover); }
 	.auth-foot {
-		margin-top: 20px;
+		margin-top: 24px;
 		text-align: center;
 		font-size: 13px;
-		color: var(--text-muted);
+		color: var(--gray9);
 	}
 	.auth-foot a { color: var(--accent); }
 	.auth-foot a:hover { text-decoration: underline; }

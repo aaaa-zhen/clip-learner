@@ -188,21 +188,20 @@ export async function explainSegment(
 ): Promise<string> {
 	const contextStr = context.join('\n');
 
-	return chat(`You explain English videos to someone who is still learning. Explain like you're talking to a 10-year-old — use the simplest words possible. Never use difficult words in your explanation.
+	return chat(`You explain English to a learner. Be brief and clear. No markdown formatting — write plain text only.
 
 Line: "${segmentText}"
 
 Context:
 ${contextStr}
 
-Give a SHORT explanation. Use markdown:
+Reply in this exact format (skip any section that doesn't apply):
 
-- **What they said:** Rewrite what they said in very simple, easy English (1 sentence)
-- **Why it's funny/interesting:** Explain the joke or point like you're telling a friend. Keep it super simple (1-2 sentences)
-- **Hard words:** List any difficult words and explain each one in baby-simple English
-- **Tone:** Is this a joke? Serious? Sarcastic? Friendly teasing?
+Simple meaning: (rewrite in 1 easy sentence)
+Why it's interesting: (1 sentence max)
+Key words: word = simple definition (one per line, only truly hard words)
 
-Skip sections that don't apply. No intro, just explain. Use words a child would know.`, 400, userId);
+Rules: No bold, no bullets, no asterisks. Plain text only. Maximum 6 lines total.`, 250, userId);
 }
 
 interface WordLookupContext {

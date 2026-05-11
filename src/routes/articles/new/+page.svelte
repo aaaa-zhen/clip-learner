@@ -152,35 +152,37 @@
 		align-items: center;
 		justify-content: center;
 		padding: 24px;
-		background: var(--bg);
+		background: var(--gray1);
 	}
 
 	.card {
 		width: 100%;
 		max-width: 520px;
-		background: var(--bg-card);
-		border: 1px solid var(--border);
+		background: var(--gray2);
+		border: 1px solid var(--gray4);
 		border-radius: var(--radius-lg);
 		padding: 36px 32px;
+		box-shadow: var(--shadow-lg);
 	}
 
 	.heading {
-		font-size: 22px;
-		font-weight: 700;
-		color: var(--text);
+		font-family: var(--font-display);
+		font-size: 24px;
+		font-weight: 400;
+		color: var(--gray12);
 		margin: 0 0 6px;
 	}
 
 	.sub {
 		font-size: 14px;
-		color: var(--text-muted);
+		color: var(--gray11);
 		margin: 0 0 24px;
 	}
 
 	.tabs {
 		display: flex;
 		gap: 4px;
-		background: var(--bg-dark);
+		background: var(--gray3);
 		padding: 4px;
 		border-radius: var(--radius-sm);
 		margin-bottom: 20px;
@@ -196,18 +198,17 @@
 		border: none;
 		background: none;
 		border-radius: calc(var(--radius-sm) - 2px);
-		font-size: 13.5px;
+		font-size: 13px;
 		font-weight: 500;
-		color: var(--text-muted);
+		color: var(--gray9);
 		cursor: pointer;
-		transition: background 0.12s, color 0.12s;
+		transition: background var(--duration-fast) var(--ease), color var(--duration-fast) var(--ease);
 		min-height: auto;
 	}
 
 	.tab.active {
-		background: var(--bg-card);
-		color: var(--text);
-		box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+		background: var(--gray5);
+		color: var(--gray12);
 	}
 
 	.field {
@@ -217,20 +218,21 @@
 
 	.input {
 		flex: 1;
-		background: var(--bg-dark);
-		border: 1px solid var(--border);
+		background: var(--gray1);
+		border: 1px solid var(--gray4);
 		border-radius: var(--radius-sm);
 		padding: 10px 14px;
 		font-size: 14px;
-		color: var(--text);
+		color: var(--gray12);
 		font-family: var(--font-ui);
-		transition: border-color 0.12s;
+		transition: border-color var(--duration-fast) var(--ease);
 		min-width: 0;
 	}
 
 	.input:focus {
 		outline: none;
 		border-color: var(--accent);
+		box-shadow: 0 0 0 3px var(--accent-soft);
 	}
 
 	.paste-form {
@@ -240,21 +242,22 @@
 	}
 
 	.textarea {
-		background: var(--bg-dark);
-		border: 1px solid var(--border);
+		background: var(--gray1);
+		border: 1px solid var(--gray4);
 		border-radius: var(--radius-sm);
 		padding: 10px 14px;
 		font-size: 14px;
-		color: var(--text);
+		color: var(--gray12);
 		font-family: var(--font-ui);
 		resize: vertical;
-		transition: border-color 0.12s;
+		transition: border-color var(--duration-fast) var(--ease);
 		line-height: 1.6;
 	}
 
 	.textarea:focus {
 		outline: none;
 		border-color: var(--accent);
+		box-shadow: 0 0 0 3px var(--accent-soft);
 	}
 
 	.btn-primary {
@@ -270,18 +273,16 @@
 		font-weight: 600;
 		cursor: pointer;
 		white-space: nowrap;
-		transition: opacity 0.12s;
+		transition: background var(--duration-fast) var(--ease), opacity var(--duration-fast) var(--ease);
 	}
 
-	.btn-primary:disabled {
-		opacity: 0.5;
-		cursor: default;
-	}
+	.btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+	.btn-primary:disabled { opacity: 0.4; cursor: default; }
 
 	.error {
 		margin: 14px 0 0;
-		font-size: 13.5px;
-		color: var(--red, #e74c3c);
+		font-size: 13px;
+		color: var(--red);
 	}
 
 	:global(.spin) {

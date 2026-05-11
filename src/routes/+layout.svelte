@@ -1,6 +1,7 @@
 <script lang="ts">
 	import '../app.css';
 	import { authModalOpen } from '$lib/stores/auth';
+	import { initTheme } from '$lib/stores/theme';
 	import { onMount } from 'svelte';
 
 	let { children, data } = $props();
@@ -15,16 +16,21 @@
 	// re-trigger the toast.
 	let expiredToast = $state(false);
 	onMount(() => {
-		if (!data.sessionExpired) return;
-		expiredToast = true;
-		// Drop the query param so this doesn't loop on refresh.
-		try {
-			const url = new URL(window.location.href);
-			url.searchParams.delete('signed_out');
-			history.replaceState(history.state, '', url.toString());
-		} catch {}
-		const t = setTimeout(() => { expiredToast = false; }, 5000);
-		return () => clearTimeout(t);
+		const cleanupTheme = initTheme();
+		let toastTimer: ReturnType<typeof setTimeout> | null = null;
+		if (data.sessionExpired) {
+			expiredToast = true;
+			try {
+				const url = new URL(window.location.href);
+				url.searchParams.delete('signed_out');
+				history.replaceState(history.state, '', url.toString());
+			} catch {}
+			toastTimer = setTimeout(() => { expiredToast = false; }, 5000);
+		}
+		return () => {
+			cleanupTheme();
+			if (toastTimer) clearTimeout(toastTimer);
+		};
 	});
 
 	async function handleAuth(e: SubmitEvent) {
@@ -90,6 +96,9 @@
 		onkeydown={(e) => { if (e.key === 'Escape') authModalOpen.set(false); }}
 	>
 		<div class="auth-card" inert={authLoading}>
+			<button type="button" class="auth-close" onclick={() => authModalOpen.set(false)} aria-label="Close">
+				<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+			</button>
 			<div class="auth-logo">Clip Learner</div>
 			<p class="auth-prompt">Sign up to save words and track your progress.</p>
 
@@ -132,26 +141,44 @@
 		align-items: center;
 		justify-content: center;
 		padding: 24px;
-		background: color-mix(in srgb, var(--bg) 40%, transparent);
-		backdrop-filter: blur(4px);
-		-webkit-backdrop-filter: blur(4px);
-		animation: fadeIn 0.2s ease;
+		background: hsla(0 0% 0% / 0.4);
+		backdrop-filter: blur(8px);
+		-webkit-backdrop-filter: blur(8px);
+		animation: fadeIn var(--duration-normal) var(--ease);
 	}
 	@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
 	.auth-card {
 		width: min(400px, 100%);
-		background: var(--bg-card);
-		border: 1px solid var(--border);
+		background: var(--gray2);
+		border: 1px solid var(--gray4);
 		border-radius: var(--radius-lg);
 		padding: 36px;
-		box-shadow: 0 24px 64px rgba(0,0,0,0.18);
-		animation: slideUp 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+		box-shadow: var(--shadow-lg);
+		animation: slideUp var(--duration-normal) var(--ease);
 	}
 	@keyframes slideUp {
-		from { transform: translateY(10px); opacity: 0; }
-		to   { transform: translateY(0);    opacity: 1; }
+		from { transform: translateY(8px); opacity: 0; }
+		to   { transform: translateY(0);   opacity: 1; }
 	}
+
+	.auth-close {
+		position: absolute;
+		top: 14px;
+		right: 14px;
+		width: 28px;
+		height: 28px;
+		border-radius: var(--radius-sm);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		color: var(--gray9);
+		cursor: pointer;
+		transition: background var(--duration-fast) var(--ease), color var(--duration-fast) var(--ease);
+	}
+	.auth-close:hover { background: var(--gray4); color: var(--gray12); }
+
+	.auth-card { position: relative; }
 
 	.auth-logo {
 		font-size: 12px;
@@ -162,41 +189,40 @@
 		margin-bottom: 8px;
 	}
 	.auth-prompt {
-		font-size: 13.5px;
-		color: var(--text-muted);
-		margin-bottom: 20px;
+		font-size: 14px;
+		color: var(--gray11);
+		margin-bottom: 24px;
 		line-height: 1.5;
 	}
 
 	.auth-tabs {
 		display: flex;
-		border: 1px solid var(--border);
+		border: 1px solid var(--gray4);
 		border-radius: var(--radius-sm);
 		padding: 3px;
-		margin-bottom: 20px;
-		background: var(--bg-dark);
+		margin-bottom: 24px;
+		background: var(--gray3);
 	}
 	.auth-tab {
 		flex: 1;
-		padding: 7px 12px;
+		padding: 8px 12px;
 		font-size: 13px;
 		font-weight: 500;
 		border-radius: calc(var(--radius-sm) - 2px);
-		color: var(--text-muted);
+		color: var(--gray10);
 		background: none;
 		border: none;
 		cursor: pointer;
-		transition: background 0.15s, color 0.15s;
+		transition: background var(--duration-fast) var(--ease), color var(--duration-fast) var(--ease);
 	}
 	.auth-tab.active {
-		background: var(--bg-card);
-		color: var(--text);
-		box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+		background: var(--gray5);
+		color: var(--gray12);
 	}
 
 	.auth-success {
-		background: color-mix(in srgb, var(--green) 10%, var(--bg-card));
-		border: 1px solid color-mix(in srgb, var(--green) 30%, var(--border));
+		background: hsla(145 50% 48% / 0.08);
+		border: 1px solid hsla(145 50% 48% / 0.2);
 		color: var(--green);
 		border-radius: var(--radius-sm);
 		padding: 12px 16px;
@@ -207,39 +233,44 @@
 	}
 
 	.auth-error {
-		background: color-mix(in srgb, var(--red) 10%, var(--bg-card));
-		border: 1px solid color-mix(in srgb, var(--red) 30%, var(--border));
+		background: hsla(0 50% 52% / 0.08);
+		border: 1px solid hsla(0 50% 52% / 0.2);
 		color: var(--red);
 		border-radius: var(--radius-sm);
-		padding: 9px 13px;
+		padding: 10px 14px;
 		font-size: 13px;
-		margin-bottom: 14px;
+		margin-bottom: 16px;
 	}
 
 	.auth-label {
 		display: flex;
 		flex-direction: column;
-		gap: 5px;
-		font-size: 12.5px;
+		gap: 6px;
+		font-size: 13px;
 		font-weight: 500;
-		color: var(--text-muted);
-		margin-bottom: 12px;
+		color: var(--gray11);
+		margin-bottom: 14px;
 	}
 	.auth-input {
-		padding: 9px 11px;
-		border: 1px solid var(--border);
+		padding: 10px 12px;
+		border: 1px solid var(--gray4);
 		border-radius: var(--radius-sm);
-		background: var(--bg);
-		color: var(--text);
+		background: var(--gray1);
+		color: var(--gray12);
 		font-size: 14px;
-		transition: border-color 0.15s;
+		font-family: var(--font-ui);
+		transition: border-color var(--duration-fast) var(--ease);
 	}
-	.auth-input:focus { outline: none; border-color: var(--accent); }
+	.auth-input:focus {
+		outline: none;
+		border-color: var(--accent);
+		box-shadow: 0 0 0 3px var(--accent-soft);
+	}
 
 	.auth-btn {
 		width: 100%;
 		padding: 10px;
-		margin-top: 6px;
+		margin-top: 8px;
 		background: var(--accent);
 		color: white;
 		border: none;
@@ -247,7 +278,7 @@
 		font-size: 14px;
 		font-weight: 600;
 		cursor: pointer;
-		transition: background 0.15s, opacity 0.15s;
+		transition: background var(--duration-fast) var(--ease), opacity var(--duration-fast) var(--ease);
 	}
 	.auth-btn:hover:not(:disabled) { background: var(--accent-hover); }
 	.auth-btn:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -262,13 +293,13 @@
 		align-items: center;
 		gap: 12px;
 		padding: 10px 12px 10px 16px;
-		background: var(--bg-card);
-		border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+		background: var(--gray2);
+		border: 1px solid var(--gray4);
 		border-radius: var(--radius-sm);
-		box-shadow: 0 8px 28px rgba(0,0,0,0.18);
+		box-shadow: var(--shadow-md);
 		font-size: 13.5px;
-		color: var(--text);
-		animation: slideDown 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+		color: var(--gray12);
+		animation: slideDown var(--duration-normal) var(--ease);
 	}
 	@keyframes slideDown {
 		from { transform: translate(-50%, -12px); opacity: 0; }
@@ -277,13 +308,14 @@
 	.session-toast-close {
 		width: 24px;
 		height: 24px;
-		border-radius: 4px;
+		border-radius: var(--radius-xs);
 		border: none;
 		background: none;
-		color: var(--text-muted);
+		color: var(--gray9);
 		font-size: 18px;
 		line-height: 1;
 		cursor: pointer;
+		transition: background var(--duration-fast) var(--ease), color var(--duration-fast) var(--ease);
 	}
-	.session-toast-close:hover { background: var(--bg-dark); color: var(--text); }
+	.session-toast-close:hover { background: var(--gray4); color: var(--gray12); }
 </style>

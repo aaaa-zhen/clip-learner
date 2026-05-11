@@ -6,7 +6,17 @@
 			<link rel="preconnect" href="https://fonts.googleapis.com">
 			<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 			<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&family=Caveat:wght@400;600&display=swap" rel="stylesheet">
-			<script>document.documentElement.dataset.theme = 'dark';</script>
+			<script>
+			(function() {
+				var s = localStorage.getItem('clip-theme');
+				if (s !== 'light' && s !== 'dark' && s !== 'system') s = 'system';
+				var t = s === 'system'
+					? (matchMedia('(prefers-color-scheme:dark)').matches ? 'dark' : 'light')
+					: s;
+				document.documentElement.dataset.theme = t;
+				document.documentElement.style.colorScheme = t;
+			})();
+		</script>
 			%sveltekit.head%
 		</head>
 	<body data-sveltekit-preload-data="hover">
