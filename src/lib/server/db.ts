@@ -123,6 +123,10 @@ function initSchema() {
 		db.exec("ALTER TABLE vocab_notebook ADD COLUMN phonetic TEXT DEFAULT ''");
 	} catch { /* column already exists */ }
 
+	try {
+		db.exec("ALTER TABLE vocab_notebook ADD COLUMN source_text TEXT DEFAULT ''");
+	} catch { /* column already exists */ }
+
 	db.exec(`
 		UPDATE episodes
 		SET video_id = id

@@ -20,6 +20,8 @@
 	let ttsLoading = $state<number | null>(null);
 	let search = $state('');
 	let activeSource = $state<string | null>(null);
+	let currentPage = $state(1);
+	const PAGE_SIZE = 20;
 
 	$effect(() => {
 		entries = data.entries;
@@ -51,6 +53,15 @@
 			);
 		}
 		return result;
+	});
+
+	const totalPages = $derived(Math.max(1, Math.ceil(filteredEntries.length / PAGE_SIZE)));
+	const pagedEntries = $derived(filteredEntries.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE));
+
+	// Reset to page 1 when filters change
+	$effect(() => {
+		search; activeSource;
+		currentPage = 1;
 	});
 
 	function formatTimestamp(seconds: number | null | undefined) {
@@ -149,30 +160,17 @@
 
 		{#if sources.length > 1}
 			<div class="source-filter-wrap">
-				<span class="source-label">
-					<Film size={12} aria-hidden="true" />
-					From
-				</span>
-				<div class="source-filters">
-					<button
-						class="source-chip"
-						class:active={activeSource === null}
-						onclick={() => activeSource = null}
-					>
-						All clips <span class="source-count">{entries.length}</span>
-					</button>
+				<Film size={13} aria-hidden="true" />
+				<select
+					class="source-select"
+					value={activeSource || ''}
+					onchange={(e) => { const v = (e.target as HTMLSelectElement).value; activeSource = v || null; }}
+				>
+					<option value="">All clips ({entries.length})</option>
 					{#each sources as src}
-						<button
-							class="source-chip"
-							class:active={activeSource === src.title}
-							onclick={() => activeSource = activeSource === src.title ? null : src.title}
-							title={src.title}
-						>
-							{src.title.length > 24 ? src.title.slice(0, 22) + '…' : src.title}
-							<span class="source-count">{src.count}</span>
-						</button>
+						<option value={src.title}>{src.title} ({src.count})</option>
 					{/each}
-				</div>
+				</select>
 			</div>
 		{/if}
 
@@ -182,7 +180,7 @@
 					<p>No words match your search.</p>
 				</div>
 			{:else}
-				{#each filteredEntries as entry}
+				{#each pagedEntries as entry}
 					<div class="entry">
 						<div class="entry-main">
 							<div class="entry-word">
@@ -206,6 +204,9 @@
 										</span>
 									{/if}
 								</a>
+							{/if}
+							{#if entry.source_text}
+								<p class="source-quote">"{entry.source_text}"</p>
 							{/if}
 						</div>
 						<div class="entry-actions">
@@ -231,6 +232,34 @@
 				{/each}
 			{/if}
 		</div>
+
+		{#if totalPages > 1}
+			<div class="pagination">
+				<button
+					class="page-btn"
+					disabled={currentPage <= 1}
+					onclick={() => { currentPage--; window.scrollTo(0, 0); }}
+				>Previous</button>
+				<div class="page-numbers">
+					{#each Array.from({ length: totalPages }, (_, i) => i + 1) as p}
+						{#if p === 1 || p === totalPages || (p >= currentPage - 1 && p <= currentPage + 1)}
+							<button
+								class="page-num"
+								class:active={p === currentPage}
+								onclick={() => { currentPage = p; window.scrollTo(0, 0); }}
+							>{p}</button>
+						{:else if p === currentPage - 2 || p === currentPage + 2}
+							<span class="page-dots">…</span>
+						{/if}
+					{/each}
+				</div>
+				<button
+					class="page-btn"
+					disabled={currentPage >= totalPages}
+					onclick={() => { currentPage++; window.scrollTo(0, 0); }}
+				>Next</button>
+			</div>
+		{/if}
 	{/if}
 </div>
 
@@ -366,59 +395,26 @@
 	.source-filter-wrap {
 		display: flex;
 		align-items: center;
-		gap: 10px;
+		gap: 8px;
 		margin-bottom: 16px;
-	}
-	.source-label {
-		display: flex;
-		align-items: center;
-		gap: 4px;
-		font-size: 12px;
-		font-weight: 500;
 		color: var(--gray9);
-		flex-shrink: 0;
-		white-space: nowrap;
 	}
-	.source-filters {
-		display: flex;
-		gap: 6px;
-		overflow-x: auto;
-		-webkit-overflow-scrolling: touch;
-		scrollbar-width: none;
-		padding-bottom: 2px;
-	}
-	.source-filters::-webkit-scrollbar { display: none; }
-	.source-chip {
-		display: inline-flex;
-		align-items: center;
-		gap: 6px;
-		padding: 6px 12px;
-		border-radius: var(--radius-pill);
+	.source-select {
+		flex: 1;
+		padding: 8px 12px;
 		border: 1px solid var(--gray4);
-		background: transparent;
-		font-size: 12px;
-		font-weight: 500;
-		color: var(--gray11);
+		border-radius: var(--radius-sm);
+		background: var(--bg-card);
+		color: var(--gray12);
+		font-family: var(--font-ui);
+		font-size: 13px;
 		cursor: pointer;
-		transition: background var(--duration-fast) var(--ease), color var(--duration-fast) var(--ease), border-color var(--duration-fast) var(--ease);
-		white-space: nowrap;
-		max-width: 220px;
-		overflow: hidden;
-		text-overflow: ellipsis;
+		transition: border-color var(--duration-fast) var(--ease);
 	}
-	.source-chip:hover { background: var(--gray3); color: var(--gray12); }
-	.source-chip.active {
-		background: var(--gray12);
-		color: var(--gray1);
-		border-color: var(--gray12);
+	.source-select:focus {
+		outline: none;
+		border-color: var(--accent);
 	}
-	.source-count {
-		font-size: 10px;
-		font-weight: 600;
-		color: var(--gray9);
-		font-variant-numeric: tabular-nums;
-	}
-	.source-chip.active .source-count { color: var(--gray6); }
 
 	.entries {
 		display: grid;
@@ -499,6 +495,74 @@
 		gap: 3px;
 		flex-shrink: 0;
 		color: var(--gray9);
+	}
+	/* Pagination */
+	.pagination {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 6px;
+		margin-top: 24px;
+		padding-top: 20px;
+		border-top: 1px solid var(--gray3);
+	}
+	.page-numbers {
+		display: flex;
+		align-items: center;
+		gap: 2px;
+	}
+	.page-btn {
+		padding: 7px 16px;
+		border-radius: var(--radius-sm);
+		border: 1px solid var(--gray4);
+		background: transparent;
+		font-size: 13px;
+		font-weight: 500;
+		color: var(--gray11);
+		cursor: pointer;
+		transition: background var(--duration-fast) var(--ease), color var(--duration-fast) var(--ease);
+	}
+	.page-btn:hover:not(:disabled) { background: var(--gray3); color: var(--gray12); }
+	.page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+	.page-num {
+		width: 32px;
+		height: 32px;
+		border-radius: var(--radius-sm);
+		border: none;
+		background: transparent;
+		font-size: 13px;
+		font-weight: 500;
+		color: var(--gray9);
+		cursor: pointer;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		transition: background var(--duration-fast) var(--ease), color var(--duration-fast) var(--ease);
+	}
+	.page-num:hover { background: var(--gray3); color: var(--gray12); }
+	.page-num.active {
+		background: var(--gray12);
+		color: var(--gray1);
+		font-weight: 600;
+	}
+	.page-dots {
+		width: 24px;
+		text-align: center;
+		color: var(--gray8);
+		font-size: 13px;
+	}
+
+	.source-quote {
+		font-size: 13px;
+		color: var(--gray9);
+		font-style: italic;
+		margin-top: 6px;
+		line-height: 1.5;
+		display: -webkit-box;
+		-webkit-line-clamp: 2;
+		line-clamp: 2;
+		-webkit-box-orient: vertical;
+		overflow: hidden;
 	}
 
 	.entry-actions {

@@ -11,7 +11,7 @@
 	import { invalidateAll } from '$app/navigation';
 	import { onDestroy, onMount, tick } from 'svelte';
 	import { isPlaying, currentTime } from '$lib/stores/player';
-	import { loadResumePosition } from '$lib/utils/resume';
+	import { loadResumePosition, saveResumePosition } from '$lib/utils/resume';
 	import {
 		BookOpen,
 		Captions,
@@ -715,6 +715,8 @@
 		const saved = loadResumePosition(resumeKey);
 		if (startTime !== null && Number.isFinite(startTime) && startTime >= 0) {
 			currentTime.set(startTime);
+			// Write to localStorage so YouTubePlayer.onReady picks it up via loadResumePosition
+			saveResumePosition(resumeKey, startTime);
 		} else if (saved && saved > 0) {
 			currentTime.set(saved);
 		}
@@ -897,7 +899,7 @@
 
 <div class="study-view" inert={backdropVisible} aria-hidden={backdropVisible}>
 	<header>
-		<a href="/" class="back"><ArrowLeft size={13} aria-hidden="true" />Back</a>
+		<button type="button" class="back" onclick={() => history.back()}><ArrowLeft size={13} aria-hidden="true" />Back</button>
 		<span class="divider"></span>
 			<h1>{data.episode.title}</h1>
 			<div class="top-actions">

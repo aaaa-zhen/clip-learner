@@ -72,6 +72,7 @@ export interface VocabEntry {
 	definition: string;
 	example: string;
 	phonetic: string;
+	source_text: string;
 	episode_id: string | null;
 	source_time: number | null;
 	category: string;
