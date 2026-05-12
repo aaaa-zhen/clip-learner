@@ -285,25 +285,38 @@ export async function lookupWord(
 		context?.nextLine ? `Next line: ${context.nextLine}` : ''
 	].filter(Boolean).join('\n');
 
-	const isPhrase = word.trim().split(/\s+/).length > 2;
+	const wordCount = word.trim().split(/\s+/).length;
+	const isPhrase = wordCount > 2;
+	const isSingleWord = wordCount === 1;
+
+	// For single words with context, ask LLM to detect if it's part of a phrase/idiom
+	const phraseDetectionInstruction = isSingleWord && context?.currentLine
+		? `\nIMPORTANT: First check if "${word}" is part of a common phrase, idiom, or phrasal verb in this sentence. For example, if the word is "shoes" and the sentence says "in your shoes", explain the phrase "in your shoes" instead of just "shoes". If it IS part of a phrase, set "phrase" to the full phrase and explain the phrase meaning. If it's just a regular word, set "phrase" to "".`
+		: '';
+
+	const phraseField = isSingleWord && context?.currentLine
+		? '\n- phrase: the full phrase/idiom if this word is part of one (e.g. "in your shoes"), or "" if it\'s just a regular word'
+		: '';
+
 	const text = await chat(
 		`You are explaining ${isPhrase ? 'a phrase or sentence' : 'a word'} to a 10-year-old child learning English. Use the SIMPLEST words possible. Short sentences. Fun and clear.
+${phraseDetectionInstruction}
 
 ${isPhrase ? 'Phrase' : 'Word'}: "${word}"
 Context: ${extraContext || 'No context.'}
 
-Reply with valid JSON only (no markdown, no prose). All five fields are required; use "" for note if there's nothing extra to say.
+Reply with valid JSON only (no markdown, no prose). All fields are required; use "" for note if there's nothing extra to say.
 
-Schema:
+Schema:${phraseField}
 - phonetic: ${isPhrase ? '"(phrase)"' : 'IPA-style pronunciation like "/ teɪk /"'}
-- partOfSpeech: ${isPhrase ? '"phrase" or "idiom" or "sentence"' : '"noun" or "verb" or "adjective" or similar'}
+- partOfSpeech: ${isPhrase ? '"phrase" or "idiom" or "sentence"' : '"noun" or "verb" or "adjective" or similar — use "idiom" or "phrasal verb" if this word is part of a phrase'}
 - definition: one simple sentence explaining what it means HERE in the video, max 20 words, like talking to a little kid
 - example: one super simple example sentence, max 12 words
 - note: one short sentence only if there's something extra important; otherwise "".
 
 Example response:
 {"phonetic":"/ teɪk /","partOfSpeech":"verb","definition":"To grab something and carry it away.","example":"She took the apple with her.","note":""}`,
-		280,
+		320,
 		userId
 	);
 
@@ -334,6 +347,7 @@ Example response:
 }
 
 interface WordEntry {
+	phrase?: string;
 	phonetic?: string;
 	partOfSpeech?: string;
 	definition?: string;

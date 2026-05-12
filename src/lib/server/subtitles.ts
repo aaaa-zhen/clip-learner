@@ -9,9 +9,9 @@ export interface ParsedSegment {
 
 const TIME_RE =
 	/(\d{1,2}:\d{2}:\d{2}[,.]\d{1,3})\s*-->\s*(\d{1,2}:\d{2}:\d{2}[,.]\d{1,3})/;
-const MAX_MERGED_SECONDS = 12;
-const MAX_MERGED_CHARS = 220;
-const MAX_MERGE_GAP_SECONDS = 1.2;
+const MAX_MERGED_SECONDS = 8;
+const MAX_MERGED_CHARS = 120;
+const MAX_MERGE_GAP_SECONDS = 1.0;
 
 export function parseSrt(content: string): ParsedSegment[] {
 	const normalized = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/^\uFEFF/, '');

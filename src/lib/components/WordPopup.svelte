@@ -24,6 +24,7 @@
 	} = $props();
 
 	interface WordEntry {
+		phrase?: string;
 		phonetic?: string;
 		partOfSpeech?: string;
 		definition?: string;
@@ -152,6 +153,10 @@
 			});
 			const data = await res.json();
 			entry = data.definition || { definition: 'No definition found.' };
+			// If the LLM detected a phrase (e.g. "in your shoes" when user clicked "shoes"), show it
+			if (entry.phrase) {
+				word = entry.phrase;
+			}
 		} catch {
 			entry = { definition: 'Could not look up this word.' };
 		} finally {
@@ -338,9 +343,7 @@
 />
 
 {#if toastVisible}
-	<div class="toast">
-		<span class="toast-check">✓</span> "<strong>{toastWord}</strong>" saved to notebook
-	</div>
+	<div class="toast">Saved to notebook</div>
 {/if}
 
 {#if visible}
@@ -625,23 +628,21 @@
 
 	.toast {
 		position: fixed;
-		bottom: 28px;
+		bottom: 48px;
 		left: 50%;
 		transform: translateX(-50%);
-		background: var(--bg-card);
-		border: 1px solid var(--border);
-		border-left: 3px solid var(--green);
-		border-radius: 10px;
-		padding: 10px 18px;
-		font-size: 13.5px;
-		color: var(--text);
-		box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+		background: #0f0f0f;
+		border-radius: 8px;
+		padding: 8px 16px;
+		font-family: var(--font-ui);
+		font-size: 14px;
+		font-weight: 500;
+		color: #fff;
 		white-space: nowrap;
 		z-index: 2000;
 		animation: toastIn 0.2s ease-out;
 		pointer-events: none;
 	}
-	.toast-check { color: var(--green); font-weight: 700; margin-right: 4px; }
 	@keyframes toastIn {
 		from { opacity: 0; transform: translateX(-50%) translateY(8px); }
 		to   { opacity: 1; transform: translateX(-50%) translateY(0); }

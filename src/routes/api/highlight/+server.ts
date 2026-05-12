@@ -31,24 +31,28 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		timeout: 15_000
 	});
 
-	const prompt = `You are a language analysis tool. Given a sentence, find collocations and phrasal verbs.
+	const prompt = `You are a language analysis tool. Given a sentence, find phrasal verbs and genuinely interesting collocations that a language learner would benefit from knowing.
 
 Sentence: "${text}"
 
 Rules:
-- Only highlight phrases where the words BELONG TOGETHER as a single meaning unit.
+- Only highlight phrases where the words BELONG TOGETHER as a single meaning unit with a NON-OBVIOUS meaning.
 - The words must be CONSECUTIVE and in the SAME clause — never span across commas, "and", "but", or sentence boundaries.
 - Only include multi-word phrases (2–4 words). No single words.
-- Be selective — only highlight genuinely interesting phrases a language learner should know.
+- Be VERY selective — most sentences have ZERO highlights. Only highlight if a learner would genuinely struggle to understand the phrase from the individual words alone.
+- NEVER highlight basic modifier+noun or modifier+adjective pairs that any beginner would understand.
 
 Examples of GOOD highlights:
-- Phrasal verbs: "figure out", "set up", "come up with", "get used to"
-- Collocations: "make sense", "take action", "strong foundation", "so good"
+- Phrasal verbs: "figure out", "set up", "come up with", "get used to", "break down"
+- Idioms/collocations with non-obvious meaning: "in your shoes", "make sense", "take for granted", "on the fence", "big deal"
 
-Examples of BAD highlights (do NOT do this):
-- "hardwired, and" — spans across a comma into the next clause
+Examples of BAD highlights (do NOT highlight these):
+- "very hard", "very easy", "really good" — basic intensifier + adjective, obvious meaning
+- "right amount", "the product", "the problem" — basic determiner/adjective + noun
+- "to build", "to be", "it is" — basic grammar structures
+- "I think", "you know", "of course" — too common
+- "hardwired, and" — spans across clause boundary
 - "food is" — not a meaningful collocation
-- "I think" — too common, not useful
 
 Return JSON: {"spans": [{"text": "exact substring", "type": "collocation" or "phrasal_verb"}]}
 If none found, return {"spans":[]}.

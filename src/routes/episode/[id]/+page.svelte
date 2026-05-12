@@ -1693,7 +1693,7 @@
 			gap: 12px;
 			padding: 14px 20px 16px;
 			border-left: 3px solid var(--accent);
-			min-height: 56px;
+			min-height: 80px;
 			transition: opacity var(--duration-normal) var(--ease), background-color var(--duration-normal) var(--ease);
 		}
 		.caption-text {
@@ -1708,8 +1708,8 @@
 		font-family: var(--font-body);
 		user-select: text;
 		display: -webkit-box;
-		-webkit-line-clamp: 3;
-		line-clamp: 3;
+		-webkit-line-clamp: 2;
+		line-clamp: 2;
 		-webkit-box-orient: vertical;
 		overflow: hidden;
 		}
