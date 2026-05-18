@@ -1,57 +1,106 @@
-import { transcribeYouTubeVideo } from './whisper';
+import { spawn } from 'node:child_process';
+import crypto from 'crypto';
+
+export type VideoSource = 'youtube' | 'twitter' | 'other';
+
+export interface VideoInfo {
+	title: string;
+	duration: number;
+	thumbnail: string;
+	source: VideoSource;
+	videoId: string; // stable unique ID for dedup
+}
+
+const YOUTUBE_RE = /(?:youtube\.com\/watch\?(?:.*&)?v=|youtu\.be\/|youtube\.com\/(?:embed|shorts)\/)([a-zA-Z0-9_-]{11})/;
+const TWITTER_RE = /(?:twitter\.com|x\.com)\/\w+\/status\/(\d+)/;
 
 export function extractVideoId(url: string): string | null {
-	const patterns = [
-		/(?:youtube\.com\/watch\?v=)([a-zA-Z0-9_-]{11})/,
-		/(?:youtu\.be\/)([a-zA-Z0-9_-]{11})/,
-		/(?:youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/,
-		/(?:youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/
-	];
-	for (const pattern of patterns) {
-		const match = url.match(pattern);
-		if (match) return match[1];
-	}
+	const yt = url.match(YOUTUBE_RE);
+	if (yt) return yt[1];
+	const tw = url.match(TWITTER_RE);
+	if (tw) return tw[1];
 	return null;
 }
 
-export async function getVideoInfo(
-	url: string
-): Promise<{ title: string; duration: number; thumbnail: string }> {
-	const videoId = extractVideoId(url);
-	if (!videoId) throw new Error('Invalid YouTube URL');
-
-	// Use YouTube oEmbed API (no API key needed). Duration isn't available
-	// from oEmbed — we get it later from ffprobe after downloading audio.
-	const oembedUrl = `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`;
-	const res = await fetch(oembedUrl);
-	if (!res.ok) throw new Error('Failed to fetch video info');
-	const data = await res.json();
-
-	return {
-		title: data.title || 'Unknown',
-		duration: 0,
-		thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`
-	};
+export function detectSource(url: string): VideoSource {
+	if (YOUTUBE_RE.test(url)) return 'youtube';
+	if (TWITTER_RE.test(url)) return 'twitter';
+	return 'other';
 }
 
-/**
- * Get SRT captions for a YouTube video.
- *
- * Historically this called yt-dlp to fetch YouTube's auto-generated XML
- * captions. YouTube has been aggressively blocking that endpoint from
- * many IPs, so we now transcribe the audio locally with Whisper (or via
- * an OpenAI-compatible Whisper API).
- *
- * Kept as a thin wrapper around `transcribeYouTubeVideo` so older callers
- * don't need to change.
- */
+export function isSupportedUrl(url: string): boolean {
+	try {
+		const u = new URL(url);
+		return extractVideoId(url) !== null || ['twitter.com','x.com','youtube.com','youtu.be'].includes(u.hostname.replace('www.',''));
+	} catch {
+		return false;
+	}
+}
+
+function spawnCapture(cmd: string, args: string[]): Promise<{ stdout: string; stderr: string }> {
+	return new Promise((resolve, reject) => {
+		const proc = spawn(cmd, args);
+		let stdout = '';
+		let stderr = '';
+		proc.stdout.on('data', (d: Buffer) => (stdout += d.toString()));
+		proc.stderr.on('data', (d: Buffer) => (stderr += d.toString()));
+		proc.on('error', reject);
+		proc.on('close', (code) => {
+			if (code === 0) resolve({ stdout, stderr });
+			else reject(new Error(`${cmd} exited ${code}: ${(stderr || stdout).slice(-600).trim()}`));
+		});
+	});
+}
+
+export async function getVideoInfo(url: string): Promise<VideoInfo> {
+	const source = detectSource(url);
+	const rawId = extractVideoId(url);
+
+	if (source === 'youtube' && rawId) {
+		// YouTube: use oEmbed (no API key, fast)
+		try {
+			const oembedUrl = `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${rawId}&format=json`;
+			const res = await fetch(oembedUrl);
+			if (res.ok) {
+				const data = await res.json();
+				return {
+					title: data.title || 'Unknown',
+					duration: 0,
+					thumbnail: `https://i.ytimg.com/vi/${rawId}/hqdefault.jpg`,
+					source,
+					videoId: rawId
+				};
+			}
+		} catch {}
+	}
+
+	// Fallback: use yt-dlp --dump-json for title/thumbnail (works for X and others)
+	try {
+		const { stdout } = await spawnCapture('yt-dlp', ['--dump-json', '--no-download', url]);
+		const data = JSON.parse(stdout.trim());
+		const videoId = rawId || data.id || crypto.randomUUID();
+		return {
+			title: data.title || data.description?.slice(0, 80) || 'Video',
+			duration: data.duration || 0,
+			thumbnail: data.thumbnail || '',
+			source,
+			videoId
+		};
+	} catch {
+		// Last resort: generate a random ID so the episode can still be created
+		return {
+			title: 'Video',
+			duration: 0,
+			thumbnail: '',
+			source,
+			videoId: rawId || crypto.randomUUID()
+		};
+	}
+}
+
 export async function downloadSubtitlesOnly(
-	videoId: string,
+	_videoId: string,
 	_url: string
 ): Promise<{ subsText: string }> {
-	const { srt } = await transcribeYouTubeVideo(videoId);
-	if (!srt.trim()) {
-		throw new Error('Transcription produced no captions — audio may be silent or unavailable.');
-	}
-	return { subsText: srt };
+	throw new Error('Use transcribeYouTubeVideo directly');
 }

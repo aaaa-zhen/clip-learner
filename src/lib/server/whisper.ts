@@ -120,7 +120,7 @@ const YTDLP_COOKIES = env.YTDLP_COOKIES || path.join(process.cwd(), 'cookies.txt
 /** Optional HTTP/SOCKS proxy for yt-dlp (e.g. socks5://127.0.0.1:1080). */
 const YTDLP_PROXY = env.YTDLP_PROXY || '';
 
-async function downloadAudioMp3(videoId: string, outPath: string): Promise<void> {
+async function downloadAudioMp3(url: string, outPath: string): Promise<void> {
 	const args = [
 		'-f',
 		'bestaudio[ext=m4a]/bestaudio',
@@ -129,7 +129,7 @@ async function downloadAudioMp3(videoId: string, outPath: string): Promise<void>
 		'mp3',
 		'-o',
 		outPath,
-		`https://www.youtube.com/watch?v=${videoId}`
+		url
 	];
 
 	// If a proxy is configured, route yt-dlp through it to avoid IP bans.
@@ -343,19 +343,20 @@ async function transcribeViaLocalWhisper(
  * Download audio + transcribe. Returns SRT text ready for the existing
  * parseSrt() pipeline.
  *
- * @param videoId 11-char YouTube video id
+ * @param url full video URL (YouTube, X/Twitter, or any yt-dlp supported site)
  * @param progress optional callbacks to report stage transitions
  */
 export async function transcribeYouTubeVideo(
-	videoId: string,
+	url: string,
 	progress: TranscribeProgress = {},
 	userId?: number
 ): Promise<TranscribeResult> {
-	const dir = await mkdtemp(path.join(tmpdir(), `clip-ws-${videoId}-`));
+	const safeId = url.replace(/[^a-zA-Z0-9]/g, '').slice(0, 20);
+	const dir = await mkdtemp(path.join(tmpdir(), `clip-ws-${safeId}-`));
 	const audioPath = path.join(dir, 'audio.mp3');
 
 	try {
-		await downloadAudioMp3(videoId, path.join(dir, 'audio.%(ext)s'));
+		await downloadAudioMp3(url, path.join(dir, 'audio.%(ext)s'));
 		const audioStat = await stat(audioPath).catch(() => null);
 		const duration = audioStat ? await ffprobeDuration(audioPath) : null;
 		progress.onAudioDownloaded?.(duration);

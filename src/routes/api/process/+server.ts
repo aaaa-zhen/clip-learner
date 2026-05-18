@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { query, transaction } from '$lib/server/db';
-import { extractVideoId, getVideoInfo } from '$lib/server/ytdlp';
+import { extractVideoId, getVideoInfo, isSupportedUrl } from '$lib/server/ytdlp';
 import {
 	transcribeYouTubeVideo,
 	estimateTranscribeSeconds,
@@ -19,10 +19,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		return json({ error: 'URL is required' }, { status: 400 });
 	}
 
-	const videoId = extractVideoId(url);
-	if (!videoId) {
-		return json({ error: 'Invalid YouTube URL' }, { status: 400 });
+	if (!isSupportedUrl(url)) {
+		return json({ error: 'Please paste a valid YouTube or X/Twitter video URL' }, { status: 400 });
 	}
+	const videoId = extractVideoId(url) ?? url.replace(/[^a-zA-Z0-9]/g, '').slice(-20);
 
 	const { rows: [existing] } = await query(
 		'SELECT id, status FROM episodes WHERE video_id = $1 AND user_id = $2',
@@ -109,7 +109,7 @@ async function fetchAndAnalyze(
 	try {
 		setStage(episodeId, 'fetching_audio');
 
-		const { srt, durationSeconds } = await transcribeYouTubeVideo(videoId, {
+		const { srt, durationSeconds } = await transcribeYouTubeVideo(url, {
 			onAudioDownloaded: (durationSec) => {
 				setStage(episodeId, 'transcribing');
 				if (durationSec) {

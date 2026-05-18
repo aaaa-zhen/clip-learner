@@ -46,6 +46,33 @@
 			saving = false;
 		}
 	}
+
+	// Cookies upload (owner only)
+	let cookiesFile = $state<File | null>(null);
+	let cookiesSaving = $state(false);
+	let cookiesSaved = $state(false);
+	let cookiesError = $state('');
+
+	async function uploadCookies() {
+		if (!cookiesFile) return;
+		cookiesSaving = true;
+		cookiesSaved = false;
+		cookiesError = '';
+		try {
+			const form = new FormData();
+			form.append('cookies', cookiesFile);
+			const res = await fetch('/api/cookies', { method: 'POST', body: form });
+			const d = await res.json();
+			if (!res.ok) throw new Error(d.error || 'Upload failed');
+			cookiesSaved = true;
+			cookiesFile = null;
+			setTimeout(() => { cookiesSaved = false; }, 3000);
+		} catch (e) {
+			cookiesError = e instanceof Error ? e.message : 'Upload failed';
+		} finally {
+			cookiesSaving = false;
+		}
+	}
 </script>
 
 {#if open}
@@ -102,6 +129,30 @@
 					{#if error}
 						<p class="error">{error}</p>
 					{/if}
+				</div>
+
+
+				<!-- Cookies upload -->
+				<div class="settings-section">
+					<h3 class="section-title">YouTube Cookies</h3>
+					<p class="section-desc">Upload a Netscape-format cookies.txt to bypass bot detection.</p>
+					<div class="cookies-row">
+						<label class="cookies-label">
+							<input type="file" accept=".txt,text/plain" onchange={(e) => { cookiesFile = (e.target as HTMLInputElement).files?.[0] ?? null; }} style="display:none" />
+							<span class="cookies-pick-btn">Choose file</span>
+							<span class="cookies-filename">{cookiesFile ? cookiesFile.name : 'No file chosen'}</span>
+						</label>
+						<button class="save-btn cookies-upload-btn" onclick={uploadCookies} disabled={!cookiesFile || cookiesSaving}>
+							{#if cookiesSaving}
+								<Loader2 size={13} class="spin" /> Uploading…
+							{:else if cookiesSaved}
+								<CheckCircle2 size={13} /> Uploaded
+							{:else}
+								Upload
+							{/if}
+						</button>
+					</div>
+					{#if cookiesError}<p class="error">{cookiesError}</p>{/if}
 				</div>
 
 				<div class="modal-footer">
@@ -286,4 +337,51 @@
 	.save-btn:disabled {
 		opacity: 0.6;
 	}
+
+	.settings-section {
+		padding: 16px 24px;
+		border-top: 1px solid var(--gray3);
+	}
+	.section-title {
+		font-size: 13px;
+		font-weight: 600;
+		margin: 0 0 4px;
+		color: var(--gray12);
+	}
+	.section-desc {
+		font-size: 12px;
+		color: var(--gray9);
+		margin: 0 0 10px;
+	}
+	.cookies-row {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+	}
+	.cookies-label {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		cursor: pointer;
+	}
+	.cookies-pick-btn {
+		background: var(--gray3);
+		border: 1px solid var(--gray5);
+		border-radius: 6px;
+		padding: 5px 10px;
+		font-size: 12px;
+		color: var(--gray12);
+		white-space: nowrap;
+		cursor: pointer;
+	}
+	.cookies-pick-btn:hover { background: var(--gray4); }
+	.cookies-filename {
+		font-size: 12px;
+		color: var(--gray9);
+		max-width: 140px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.cookies-upload-btn { padding: 6px 14px; font-size: 12px; }
 </style>
