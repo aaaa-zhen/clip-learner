@@ -101,7 +101,7 @@ export const DELETE: RequestHandler = async ({ request, locals }) => {
 async function fetchAndAnalyze(
 	episodeId: string,
 	videoId: string,
-	_url: string,
+	url: string,
 	userId: number
 ): Promise<void> {
 	console.log(`[${episodeId}] ${await whisperEngineDescription(userId)}`);
