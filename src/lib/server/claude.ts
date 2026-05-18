@@ -495,7 +495,7 @@ ${transcript}
 LEARNER'S SAVED WORDS FROM THIS VIDEO:
 ${vocabList || '(none yet)'}
 
-Task: generate exactly 5 multiple-choice questions to deeply test the learner's understanding of this clip. ${savedWordsInstruction}
+Task: generate exactly 8 multiple-choice questions to deeply test the learner's understanding of this clip. ${savedWordsInstruction}
 
 Question types to include (pick the best mix for this transcript):
 1. VOCABULARY — "What does X mean in this context?"
@@ -506,7 +506,7 @@ Question types to include (pick the best mix for this transcript):
 6. PARAPHRASE — "Which sentence best restates what the speaker said?"
 
 Rules:
-- Exactly 5 questions, each with 4 options, only 1 correct
+- Exactly 8 questions, each with 4 options, only 1 correct
 - At least 1 comprehension, 1 vocab, and 1 inference/tone question
 - Make wrong options plausible — avoid obviously absurd answers
 - Questions should require actually understanding the content, not just keyword matching
@@ -515,7 +515,7 @@ Rules:
 - Include "context" (a short quote from the transcript) when relevant
 - Include "sourceWord" only when testing a specific saved word
 
-Reply with JSON only, an array of 5 objects:
+Reply with JSON only, an array of 8 objects:
 [
   {"type":"Vocabulary","category":"vocab","question":"...","options":["A","B","C","D"],"correct":0,"context":"optional quote","sourceWord":"takeout"}
 ]`,
@@ -524,7 +524,7 @@ Reply with JSON only, an array of 5 objects:
 	);
 
 	const parsed = extractJson(text);
-	return shuffleAnswers(ensureQuestions(parsed).slice(0, 5));
+	return shuffleAnswers(ensureQuestions(parsed).slice(0, 8));
 }
 
 /**
@@ -566,8 +566,8 @@ export async function generateAdaptiveQuiz(
 		)
 	];
 	const strategy = wrongCategories.length
-		? `The learner struggled with: ${wrongCategories.join(', ')}. Generate 3 new questions that drill these weak areas from different angles. Make them progressively harder — test deeper understanding, not surface recall.`
-		: `The learner got everything right. Generate 3 significantly harder questions: test subtle inference, speaker intent, implicit meaning, or cultural context that requires careful listening.`;
+		? `The learner struggled with: ${wrongCategories.join(', ')}. Generate 5 new questions that drill these weak areas from different angles. Make them progressively harder — test deeper understanding, not surface recall.`
+		: `The learner got everything right. Generate 5 significantly harder questions: test subtle inference, speaker intent, implicit meaning, or cultural context that requires careful listening.`;
 
 	const text = await chat(
 		`You are a language tutor running a short adaptive quiz.
@@ -584,7 +584,7 @@ ${review}
 ${strategy}
 
 Rules:
-- Exactly 3 new questions (never repeat a prior question)
+- Exactly 5 new questions (never repeat a prior question)
 - Each has 4 options, 1 correct — make wrong options plausible
 - Go deeper than the initial round: test inference, speaker intent, implicit meaning
 - Use the same JSON schema: {type, category, question, options, correct, context?, sourceWord?}
@@ -596,7 +596,7 @@ Reply with JSON only, an array of 3 objects.`,
 	);
 
 	const parsed = extractJson(text);
-	return ensureQuestions(parsed).slice(0, 3);
+	return ensureQuestions(parsed).slice(0, 5);
 }
 
 /**
