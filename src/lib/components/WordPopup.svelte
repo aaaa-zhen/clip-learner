@@ -6,7 +6,7 @@
 
 	interface LookupContext {
 		episodeTitle?: string;
-		source?: 'transcript' | 'analysis' | 'generic';
+		source?: 'transcript' | 'analysis' | 'article' | 'generic';
 		sourceTime?: number | null;
 		currentLine?: string;
 		previousLine?: string;
@@ -15,10 +15,12 @@
 
 	let {
 		episodeTitle = '',
+		articleTitle = '',
 		episodeId = '',
 		savedWords = new Set<string>()
 	}: {
 		episodeTitle?: string;
+		articleTitle?: string;
 		episodeId?: string;
 		savedWords?: Set<string>;
 	} = $props();
@@ -89,7 +91,7 @@
 
 	// Double-click to look up word directly
 	function triggerLookup(selected: string, target: HTMLElement | null, rect: DOMRect) {
-		const context = getLookupContext(target);
+		const context = getLookupContext(target, selected);
 		const lookupKey = buildLookupKey(selected, context);
 		if (visible && lookupKey === lastLookedUp) return;
 
@@ -141,6 +143,14 @@
 
 
 	async function lookupWord(w: string, context: LookupContext | null = null) {
+		const cacheKey = explainCacheKey(w, context);
+		const cached = explainCache.get(cacheKey);
+		if (cached) {
+			entry = cached;
+			if (entry.phrase) word = entry.phrase;
+			loading = false;
+			return;
+		}
 		try {
 			const res = await fetch('/api/explain', {
 				method: 'POST',
@@ -149,9 +159,10 @@
 			});
 			const data = await res.json();
 			entry = data.definition || { definition: 'No definition found.' };
-			// If the LLM detected a phrase (e.g. "in your shoes" when user clicked "shoes"), show it
-			if (entry.phrase) {
-				word = entry.phrase;
+			if (entry.phrase) word = entry.phrase;
+			if (entry.definition && entry.definition !== 'No definition found.') {
+				if (explainCache.size >= 200) explainCache.delete(explainCache.keys().next().value!);
+				explainCache.set(cacheKey, entry);
 			}
 		} catch {
 			entry = { definition: 'Could not look up this word.' };
@@ -162,6 +173,9 @@
 
 	async function translate() {
 		if (chineseLoading || chinese || !entry.definition) return;
+		const tKey = word.toLowerCase() + '|' + entry.definition.slice(0, 60);
+		const cachedCN = translateCache.get(tKey);
+		if (cachedCN) { chinese = cachedCN; return; }
 		chineseLoading = true;
 		try {
 			const res = await fetch('/api/translate', {
@@ -172,6 +186,10 @@
 			if (res.ok) {
 				const data = await res.json();
 				chinese = data.chinese || '';
+				if (chinese) {
+					if (translateCache.size >= 200) translateCache.delete(translateCache.keys().next().value!);
+					translateCache.set(tKey, chinese);
+				}
 			}
 		} catch {
 			// silently fail
@@ -279,18 +297,19 @@
 		if (e.key === 'Escape') dismiss();
 	}
 
-	function getLookupContext(target: HTMLElement | null): LookupContext | null {
-		if (!target) return episodeTitle ? { episodeTitle, source: 'generic' } : null;
+	function getLookupContext(target: HTMLElement | null, selected = ''): LookupContext | null {
+		const title = articleTitle || episodeTitle;
+		if (!target) return title ? { episodeTitle: title, source: articleTitle ? 'article' : 'generic' } : null;
 
 		const line = target.closest('.line') as HTMLElement | null;
 		if (line) {
-			const currentLine = line.querySelector('.text')?.textContent?.trim() || '';
+			const currentLine = normalizeContextText(line.querySelector('.text')?.textContent || '');
 			const previousLine = getLineText(line.previousElementSibling);
 			const nextLine = getLineText(line.nextElementSibling);
 			const sourceTime = Number(line.dataset.startTime);
 
 			return {
-				episodeTitle,
+				episodeTitle: title,
 				source: 'transcript',
 				sourceTime: Number.isFinite(sourceTime) ? sourceTime : null,
 				currentLine,
@@ -302,9 +321,9 @@
 		const explanation = target.closest('.explanation') as HTMLElement | null;
 		if (explanation) {
 			return {
-				episodeTitle,
+				episodeTitle: title,
 				source: 'analysis',
-				currentLine: explanation.textContent?.trim() || ''
+				currentLine: normalizeContextText(explanation.textContent || '')
 			};
 		}
 
@@ -312,23 +331,67 @@
 		if (caption) {
 			const sourceTime = Number(caption.dataset.captionStart);
 			return {
-				episodeTitle,
+				episodeTitle: title,
 				source: 'transcript',
 				sourceTime: Number.isFinite(sourceTime) ? sourceTime : null,
-				currentLine: caption.dataset.captionText || caption.textContent?.trim() || ''
+				currentLine: normalizeContextText(caption.dataset.captionText || caption.textContent || '')
 			};
 		}
 
-		return episodeTitle ? { episodeTitle, source: 'generic' } : null;
+		const paragraph = target.closest('.para') as HTMLElement | null;
+		if (paragraph) {
+			const currentLine = normalizeContextText(paragraph.textContent || '');
+			const previousLine = getParagraphText(paragraph.previousElementSibling);
+			const nextLine = getParagraphText(paragraph.nextElementSibling);
+
+			return {
+				episodeTitle: title,
+				source: 'article',
+				currentLine: trimAroundSelection(currentLine, selected, 1200),
+				previousLine: trimContextLine(previousLine, 600),
+				nextLine: trimContextLine(nextLine, 600)
+			};
+		}
+
+		return title ? { episodeTitle: title, source: articleTitle ? 'article' : 'generic' } : null;
 	}
 
 	function getLineText(node: Element | null): string {
 		if (!(node instanceof HTMLElement) || !node.classList.contains('line')) return '';
-		return node.querySelector('.text')?.textContent?.trim() || '';
+		return normalizeContextText(node.querySelector('.text')?.textContent || '');
+	}
+
+	function getParagraphText(node: Element | null): string {
+		if (!(node instanceof HTMLElement) || !node.classList.contains('para')) return '';
+		return normalizeContextText(node.textContent || '');
+	}
+
+	function normalizeContextText(text: string): string {
+		return text.replace(/\s+/g, ' ').trim();
+	}
+
+	function trimContextLine(text: string, maxLength: number): string {
+		if (text.length <= maxLength) return text;
+		return text.slice(0, maxLength - 1).trim() + '…';
+	}
+
+	function trimAroundSelection(text: string, selected: string, maxLength: number): string {
+		if (text.length <= maxLength) return text;
+		const idx = selected ? text.toLowerCase().indexOf(selected.toLowerCase()) : -1;
+		if (idx < 0) return trimContextLine(text, maxLength);
+
+		const half = Math.floor(maxLength / 2);
+		let start = Math.max(0, idx - half);
+		let end = Math.min(text.length, start + maxLength);
+		start = Math.max(0, end - maxLength);
+
+		const prefix = start > 0 ? '…' : '';
+		const suffix = end < text.length ? '…' : '';
+		return prefix + text.slice(start, end).trim() + suffix;
 	}
 
 	function buildLookupKey(w: string, context: LookupContext | null): string {
-		return `${w}::${context?.currentLine || ''}::${context?.source || ''}`;
+		return `${w}::${context?.episodeTitle || ''}::${context?.currentLine || ''}::${context?.source || ''}`;
 	}
 </script>
 

@@ -9,9 +9,10 @@
 		Clock, CheckCircle2, Loader2, AlertCircle, Trash2,
 		BookMarked, Plus, Clapperboard, RotateCcw, Settings, LogOut,
 		Headphones, MousePointerClick, BrainCircuit, FileText, BookOpen, Link,
-		Sun, Moon, Monitor
+		Sun, Moon, Monitor, Film
 	} from 'lucide-svelte';
 	import SettingsModal from '$lib/components/SettingsModal.svelte';
+	import LocalUpload from '$lib/components/LocalUpload.svelte';
 	import { authModalOpen } from '$lib/stores/auth';
 	import { themeMode } from '$lib/stores/theme';
 	import type { ThemeMode } from '$lib/stores/theme';
@@ -56,6 +57,7 @@
 	let wordsSaved = $state(0);
 	let resumePositions = $state<Record<string, number>>({});
 	let settingsOpen = $state(false);
+	let uploadOpen = $state(false);
 	let deleteConfirmId = $state<string | null>(null);
 	let deleteConfirmTitle = $state('');
 
@@ -442,7 +444,19 @@ function isYouTubeUrl(u: string): boolean {
 				</button>
 			</div>
 		</form>
-		{#if error}<p class="input-error" id="youtube-url-error" role="alert">{error}</p>{/if}
+		{#if error}<p class=input-error id=youtube-url-error role=alert>{error}</p>{/if}
+
+		<div class=upload-local-row>
+			<button class=upload-local-btn onclick={() => { uploadOpen = !uploadOpen; }} aria-expanded={uploadOpen}>
+				<Film size={14} aria-hidden=true />
+				Or upload a local video
+			</button>
+		</div>
+		{#if uploadOpen}
+		<div class=upload-local-panel>
+			<LocalUpload onclose={() => { uploadOpen = false; }} />
+		</div>
+		{/if}
 
 		<!-- How it works -->
 		<div class="how-it-works">
@@ -1016,6 +1030,29 @@ function isYouTubeUrl(u: string): boolean {
 		display: flex;
 		align-items: center;
 		gap: 5px;
+	}
+
+	.upload-local-row {
+		margin-top: 10px;
+		text-align: center;
+	}
+	.upload-local-btn {
+		background: none;
+		border: none;
+		cursor: pointer;
+		color: var(--text-muted, #888);
+		font-size: 0.82rem;
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
+		padding: 4px 0;
+		transition: color 0.15s;
+	}
+	.upload-local-btn:hover { color: var(--text, #eee); }
+	.upload-local-panel {
+		margin-top: 14px;
+		display: flex;
+		justify-content: center;
 	}
 
 	/* ── Sections ── */

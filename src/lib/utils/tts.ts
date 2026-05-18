@@ -1,15 +1,19 @@
 let currentAudio: HTMLAudioElement | null = null;
 let currentObjectUrl: string | null = null;
 
+// In-memory audio cache: text → blob URL. Survives page navigation within the
+// same session. We keep the blob URL alive (don't revoke on ended) so we can
+// replay without a new API call. Max 50 entries; evict oldest when full.
+const MAX_AUDIO_CACHE = 50;
+const audioCache = new Map<string, string>(); // text → objectURL
+
 function stopCurrentAudio() {
 	if (currentAudio) {
 		currentAudio.pause();
 		currentAudio = null;
 	}
-	if (currentObjectUrl) {
-		URL.revokeObjectURL(currentObjectUrl);
-		currentObjectUrl = null;
-	}
+	// Don't revoke currentObjectUrl — it may be in the cache for replay.
+	currentObjectUrl = null;
 	if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
 		window.speechSynthesis.cancel();
 	}
@@ -30,6 +34,17 @@ export async function playPronunciation(text: string): Promise<boolean> {
 	const cleaned = text.trim();
 	if (!cleaned) return false;
 
+	// Cache hit — play immediately without a network call
+	const cached = audioCache.get(cleaned);
+	if (cached) {
+		stopCurrentAudio();
+		currentObjectUrl = cached;
+		currentAudio = new Audio(cached);
+		currentAudio.onended = () => { currentAudio = null; };
+		await currentAudio.play();
+		return true;
+	}
+
 	try {
 		const res = await fetch('/api/tts', {
 			method: 'POST',
@@ -43,18 +58,21 @@ export async function playPronunciation(text: string): Promise<boolean> {
 
 		const blob = await res.blob();
 		const url = URL.createObjectURL(blob);
-		stopCurrentAudio();
 
+		// Evict oldest entry if at capacity
+		if (audioCache.size >= MAX_AUDIO_CACHE) {
+			const firstKey = audioCache.keys().next().value;
+			if (firstKey) {
+				URL.revokeObjectURL(audioCache.get(firstKey)!);
+				audioCache.delete(firstKey);
+			}
+		}
+		audioCache.set(cleaned, url);
+
+		stopCurrentAudio();
 		currentObjectUrl = url;
 		currentAudio = new Audio(url);
-		currentAudio.onended = () => {
-			if (currentObjectUrl === url) {
-				URL.revokeObjectURL(url);
-				currentObjectUrl = null;
-				currentAudio = null;
-			}
-		};
-
+		currentAudio.onended = () => { currentAudio = null; };
 		await currentAudio.play();
 		return true;
 	} catch {

@@ -393,3 +393,25 @@ export async function whisperEngineDescription(userId?: number): Promise<string>
 		? `OpenAI-compatible Whisper API (${cfg.baseUrl}, model=${WHISPER_MODEL})`
 		: `local whisper CLI (model=${WHISPER_LOCAL_MODEL})`;
 }
+
+/**
+ * Transcribe an already-downloaded audio file (e.g. extracted client-side
+ * from a local video and uploaded to the server as mp3).
+ * Unlike transcribeYouTubeVideo, this skips the yt-dlp download step.
+ */
+export async function transcribeAudioFile(
+	audioPath: string,
+	userId?: number
+): Promise<TranscribeResult> {
+	const dir = await mkdtemp(path.join(tmpdir(), 'clip-upload-'));
+	try {
+		const whisperCfg = await getWhisperConfig(userId);
+		if (whisperCfg.apiKey) {
+			return await transcribeViaOpenAI(audioPath, dir, whisperCfg.apiKey, whisperCfg.baseUrl);
+		} else {
+			return await transcribeViaLocalWhisper(audioPath, dir);
+		}
+	} finally {
+		await rm(dir, { recursive: true, force: true });
+	}
+}
