@@ -62,7 +62,9 @@
 			await ffmpeg.deleteFile(inputName).catch(() => {});
 			await ffmpeg.deleteFile('output.mp3').catch(() => {});
 
-			const audioBlob = new Blob([data], { type: 'audio/mpeg' });
+			const audioBlobPart: BlobPart =
+				typeof data === 'string' ? data : (new Uint8Array(data).buffer as ArrayBuffer);
+			const audioBlob = new Blob([audioBlobPart], { type: 'audio/mpeg' });
 			const title = file.name.replace(/\.[^.]+$/, '');
 
 			stage = 'uploading';

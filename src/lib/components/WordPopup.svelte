@@ -52,6 +52,8 @@
 	let lastLookedUp = '';
 	let lookupContext = $state<LookupContext | null>(null);
 	let wasPlayingBeforePopup = false;
+	const explainCache = new Map<string, WordEntry>();
+	const translateCache = new Map<string, string>();
 
 	function showPopup(w: string, rect: DOMRect, context: LookupContext | null = null) {
 		word = w;
@@ -143,7 +145,7 @@
 
 
 	async function lookupWord(w: string, context: LookupContext | null = null) {
-		const cacheKey = explainCacheKey(w, context);
+		const cacheKey = buildLookupKey(w, context);
 		const cached = explainCache.get(cacheKey);
 		if (cached) {
 			entry = cached;

@@ -102,6 +102,14 @@ function initSchema() {
 		);
 
 		CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
+
+		CREATE TABLE IF NOT EXISTS resume_positions (
+			user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			video_id   TEXT NOT NULL,
+			position   INTEGER NOT NULL DEFAULT 0,
+			updated_at TEXT DEFAULT (datetime('now')),
+			PRIMARY KEY (user_id, video_id)
+		);
 	`);
 
 	// Add user_id columns to existing tables (safe to run multiple times — SQLite throws if column exists)

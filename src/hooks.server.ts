@@ -48,16 +48,21 @@ export const handle: Handle = async ({ event, resolve }) => {
 
 	const currentPath = event.url.pathname;
 	const protectedApiRoutes = [
+		'/api/articles',
 		'/api/debug',
 		'/api/download',
 		'/api/episode',
 		'/api/explain',
+		'/api/highlight',
 		'/api/logout',
 		'/api/notebook',
 		'/api/process',
 		'/api/quiz',
+		'/api/resume',
 		'/api/settings',
-		'/api/stats'
+		'/api/stats',
+		'/api/translate',
+		'/api/upload-audio'
 	];
 	const protectedPagePrefixes = ['/episode/', '/notebook'];
 	const isProtectedApi = protectedApiRoutes.some((route) => currentPath.startsWith(route));
