@@ -254,6 +254,7 @@
 	.yt-embed-wrap {
 		width: 100%;
 		aspect-ratio: 16 / 9;
+		max-height: min(46vh, 460px);
 		position: relative;
 	}
 

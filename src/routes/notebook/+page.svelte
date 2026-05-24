@@ -1,6 +1,7 @@
 <script lang="ts">
 	import {
 		ArrowLeft,
+		Bookmark,
 		BookMarked,
 		BookOpen,
 		Clock,
@@ -21,11 +22,15 @@
 	let search = $state('');
 	let activeSource = $state<string | null>(null);
 	let currentPage = $state(1);
+	let activeTab = $state<'words' | 'sentences'>('words');
 	const PAGE_SIZE = 20;
 
 	$effect(() => {
 		entries = data.entries;
 	});
+
+	const wordEntries = $derived(entries.filter((e: any) => e.category !== 'sentence'));
+	const sentenceEntries = $derived(entries.filter((e: any) => e.category === 'sentence'));
 
 	// Unique sources with word counts
 	const sources = $derived.by(() => {
@@ -38,7 +43,7 @@
 	});
 
 	const filteredEntries = $derived.by(() => {
-		let result = entries;
+		let result = wordEntries;
 		if (activeSource) {
 			result = result.filter((e) =>
 				activeSource === 'Unsorted' ? !e.episode_title : e.episode_title === activeSource
@@ -134,12 +139,20 @@
 			<BookMarked size={16} aria-hidden="true" />
 			<h1>Notebook</h1>
 		</div>
-		<span class="word-count">{entries.length} {entries.length === 1 ? 'word' : 'words'}</span>
+		<div class="nb-tabs">
+			<button class="nb-tab" class:active={activeTab === 'words'} onclick={() => { activeTab = 'words'; currentPage = 1; }}>
+				Words <span class="nb-tab-count">{wordEntries.length}</span>
+			</button>
+			<button class="nb-tab" class:active={activeTab === 'sentences'} onclick={() => { activeTab = 'sentences'; currentPage = 1; }}>
+				<Bookmark size={13} aria-hidden="true" /> Sentences <span class="nb-tab-count">{sentenceEntries.length}</span>
+			</button>
+		</div>
 	</header>
 
 	<hr class="dotted-sep" />
 
-	{#if entries.length === 0}
+	{#if activeTab === 'words'}
+	{#if wordEntries.length === 0}
 		<div class="empty">
 			<BookOpen size={32} aria-hidden="true" />
 			<p>Your notebook is empty.</p>
@@ -264,6 +277,39 @@
 			</div>
 		{/if}
 	{/if}
+	{:else}
+		{#if sentenceEntries.length === 0}
+			<div class="empty">
+				<Bookmark size={32} aria-hidden="true" />
+				<p>No sentences saved yet.</p>
+				<p class="empty-sub">Press Save on any subtitle while studying to bookmark it here.</p>
+			</div>
+		{:else}
+			<div class="entries sentence-entries">
+				{#each sentenceEntries as entry (entry.id)}
+					<div class="sentence-entry">
+						<div class="sentence-text">{entry.source_text || entry.example || entry.word}</div>
+						<div class="sentence-meta">
+							{#if entry.episode_title}
+								<a class="source-line" href={sourceHref(entry)}>
+									<Film size={11} aria-hidden="true" />
+									{entry.episode_title}
+									{#if entry.source_time != null}
+										<Clock size={11} aria-hidden="true" />
+										{formatTimestamp(entry.source_time)}
+									{/if}
+								</a>
+							{/if}
+							<button class="remove-btn" onclick={() => removeWord(entry.id)} aria-label="Remove sentence">
+								<Trash2 size={13} aria-hidden="true" />
+							</button>
+						</div>
+					</div>
+				{/each}
+			</div>
+		{/if}
+	{/if}
+
 </div>
 
 <style>
@@ -315,6 +361,65 @@
 		border-radius: var(--radius-pill);
 		padding: 3px 10px;
 		font-variant-numeric: tabular-nums;
+	}
+
+	.nb-tabs {
+		display: flex;
+		gap: 4px;
+		background: var(--gray3);
+		padding: 3px;
+		border-radius: var(--radius-sm);
+	}
+	.nb-tab {
+		display: flex;
+		align-items: center;
+		gap: 5px;
+		padding: 5px 14px;
+		border-radius: calc(var(--radius-sm) - 2px);
+		border: none;
+		background: transparent;
+		color: var(--gray9);
+		font-size: 13px;
+		font-weight: 500;
+		cursor: pointer;
+		transition: background 0.15s, color 0.15s;
+	}
+	.nb-tab.active {
+		background: var(--bg-card);
+		color: var(--gray12);
+		box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+	}
+	.nb-tab-count {
+		font-size: 11px;
+		color: var(--gray9);
+		background: var(--gray4);
+		border-radius: 99px;
+		padding: 1px 7px;
+		font-variant-numeric: tabular-nums;
+	}
+	.nb-tab.active .nb-tab-count { background: var(--gray3); }
+
+	.sentence-entries { display: flex; flex-direction: column; gap: 10px; }
+	.sentence-entry {
+		border: 1px solid var(--gray3);
+		border-radius: var(--radius-md);
+		padding: 16px 20px;
+		background: var(--bg-card);
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+	}
+	.sentence-text {
+		font-size: 17px;
+		line-height: 1.6;
+		color: var(--text);
+		font-family: var(--font-body);
+	}
+	.sentence-meta {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 8px;
 	}
 
 	.empty {

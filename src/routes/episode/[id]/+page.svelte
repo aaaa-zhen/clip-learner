@@ -13,6 +13,7 @@
 	import { isPlaying, currentTime } from '$lib/stores/player';
 	import { loadResumePosition, saveResumePosition } from '$lib/utils/resume';
 	import {
+		Bookmark,
 		BookOpen,
 		Captions,
 		CheckCircle,
@@ -95,7 +96,7 @@
 
 	const activeSegment = $derived.by<CaptionSegment | null>(() => {
 		const t = $currentTime;
-		const leadSeconds = 0.15;
+		const leadSeconds = 2;
 		const graceSeconds = 0.35;
 		for (let i = 0; i < captionSegments.length; i++) {
 			const segment = captionSegments[i];
@@ -271,6 +272,8 @@
 	const quizFinished = $derived(quizPhase === 'diagnosed');
 	const quizScore = $derived(answerRecords.filter((a) => a.correct).length);
 	let wordsSaved = $state(0);
+	let sentenceSaved = $state(false);
+	let sentenceSaveTimer: ReturnType<typeof setTimeout>;
 
 	$effect(() => {
 		episodeStatus = data.episode.status;
@@ -884,6 +887,33 @@
 		return Math.min(100, (completed / target) * 100);
 	});
 
+	async function saveSentence() {
+		if (!activeSegment?.text) return;
+		const text = activeSegment.text;
+		const words = text.trim().split(/\s+/);
+		const title = words.slice(0, 5).join(' ') + (words.length > 5 ? '\u2026' : '');
+		try {
+			const res = await fetch('/api/notebook', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					word: title,
+					definition: '',
+					example: text,
+					source_text: text,
+					episode_id: data.episode.id,
+					source_time: activeSegment.start_time,
+					category: 'sentence'
+				})
+			});
+			if (res.ok || res.status === 409) {
+				sentenceSaved = true;
+				clearTimeout(sentenceSaveTimer);
+				sentenceSaveTimer = setTimeout(() => { sentenceSaved = false; }, 2000);
+			}
+		} catch {}
+	}
+
 	async function saveWord(vocab: any) {
 		try {
 			await fetch('/api/notebook', {
@@ -1433,25 +1463,26 @@
 		flex: 1;
 		overflow-y: auto;
 		overflow-x: hidden;
-		background: var(--gray1);
+		background: var(--gray2);
 		display: flex;
+		align-items: flex-start;
+		justify-content: center;
 	}
 
 	.stage-inner {
 		width: 100%;
-		max-width: min(90vw, 1200px);
-		min-height: 100%;
+		max-width: 960px;
 		margin: 0 auto;
-		padding: clamp(20px, 4vh, 48px) clamp(16px, 2.5vw, 28px);
+		padding: 32px 24px 40px;
 		display: flex;
 		flex-direction: column;
-		gap: clamp(6px, 0.8vw, 12px);
+		gap: 0;
 	}
 
 	.stage-inner > .content-card,
 	.stage-inner > .video-shell,
 	.stage-inner > .processing-card {
-		margin-block: auto;
+		margin-block: 0;
 	}
 
 	@media (max-width: 600px) {
@@ -1626,11 +1657,11 @@
 	.retry-link:hover { color: var(--text); }
 
 		.content-card {
-			border: 1px solid var(--grayA2);
-			border-radius: var(--radius-md);
+			border: none;
+			border-radius: 14px;
 			background: var(--bg-card);
 			overflow: hidden;
-			box-shadow: var(--shadow-lg);
+			box-shadow: 0 24px 64px rgba(0,0,0,0.18);
 		}
 		.caption-panel {
 			border-top: 1px solid var(--gray4);
@@ -1691,6 +1722,11 @@
 			opacity: 0.4;
 			cursor: not-allowed;
 		}
+		.caption-action.saved {
+			color: var(--green);
+			border-color: var(--green);
+			background: hsla(145 50% 48% / 0.08);
+		}
 		.caption-mode-btn:focus-visible,
 		.caption-action:focus-visible,
 		.caption-chip:focus-visible {
@@ -1703,7 +1739,7 @@
 			gap: 12px;
 			padding: 14px 20px 16px;
 			border-left: 3px solid var(--accent);
-			height: 124px;
+			min-height: 116px;
 			overflow: hidden;
 			transition: opacity var(--duration-normal) var(--ease), background-color var(--duration-normal) var(--ease);
 		}
@@ -1712,8 +1748,8 @@
 			min-width: 0;
 		}
 	.paused-text {
-		font-size: 19px;
-		line-height: 1.55;
+		font-size: 22px;
+		line-height: 1.7;
 		color: var(--text);
 		margin: 0;
 		font-family: var(--font-body);
