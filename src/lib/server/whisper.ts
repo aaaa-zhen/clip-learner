@@ -14,16 +14,17 @@
  * analysis.ts continues to work unchanged.
  */
 
-import { spawn } from 'node:child_process';
 import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
 import { openAsBlob } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-// SvelteKit's dynamic env accessor — reads .env in dev and real env in prod.
-// process.env doesn't pick up .env reliably under `vite dev`, so go through
-// this instead.
 import { env } from '$env/dynamic/private';
 import { getSettings } from './claude';
+import {
+	spawnCapture, sleep, runYtdlpWithRetries, baseYtdlpArgs,
+	hasCookiesFile, isAuthRequiredError, isCookiesExpiredError,
+	YTDLP_COOKIES
+} from './ytdlp-utils';
 
 // --- config -------------------------------------------------------------
 
@@ -32,6 +33,7 @@ const WHISPER_LOCAL_MODEL = env.WHISPER_LOCAL_MODEL || 'tiny.en';
 const CHUNK_SECONDS = Number(env.WHISPER_CHUNK_SECONDS || 10 * 60);
 const MAX_PARALLEL_CHUNKS = Number(env.WHISPER_MAX_PARALLEL_CHUNKS || 2);
 const MAX_RETRIES = 5;
+const WHISPER_REQUEST_TIMEOUT_MS = Number(env.WHISPER_REQUEST_TIMEOUT_MS || 300_000);
 
 function normalizeOpenAIBaseUrl(value: string): string {
 	const trimmed = value.replace(/\/+$/, '');
@@ -68,28 +70,6 @@ export interface TranscribeResult {
 
 // --- utilities ----------------------------------------------------------
 
-function spawnCapture(cmd: string, args: string[]): Promise<{ stdout: string; stderr: string }> {
-	return new Promise((resolve, reject) => {
-		const proc = spawn(cmd, args);
-		let stdout = '';
-		let stderr = '';
-		proc.stdout.on('data', (d: Buffer) => (stdout += d.toString()));
-		proc.stderr.on('data', (d: Buffer) => (stderr += d.toString()));
-		proc.on('error', reject);
-		proc.on('close', (code) => {
-			if (code === 0) resolve({ stdout, stderr });
-			else
-				reject(
-					new Error(
-						`${cmd} exited ${code}: ${(stderr || stdout).slice(-600).trim() || 'no output'}`
-					)
-				);
-		});
-	});
-}
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
 /** Convert seconds to an SRT timestamp like "00:01:23,456". */
 function toSrtTimestamp(seconds: number): string {
 	if (!Number.isFinite(seconds) || seconds < 0) seconds = 0;
@@ -115,37 +95,50 @@ function cuesToSrt(cues: Array<{ start: number; end: number; text: string }>): s
 
 // --- audio download (yt-dlp) -------------------------------------------
 
-/** Path to a Netscape-format cookies.txt file for yt-dlp. */
-const YTDLP_COOKIES = env.YTDLP_COOKIES || path.join(process.cwd(), 'cookies.txt');
-/** Optional HTTP/SOCKS proxy for yt-dlp (e.g. socks5://127.0.0.1:1080). */
-const YTDLP_PROXY = env.YTDLP_PROXY || '';
-
-async function downloadAudioMp3(url: string, outPath: string): Promise<void> {
-	const args = [
-		'-f',
-		'bestaudio[ext=m4a]/bestaudio',
-		'-x',
-		'--audio-format',
-		'mp3',
-		'-o',
-		outPath,
+function buildAudioArgs(url: string, outPath: string, useCookies: boolean): string[] {
+	return [
+		...baseYtdlpArgs(useCookies),
+		'-f', 'bestaudio[ext=m4a]/bestaudio',
+		'-x', '--audio-format', 'mp3',
+		'-o', outPath,
 		url
 	];
+}
 
-	// If a proxy is configured, route yt-dlp through it to avoid IP bans.
-	if (YTDLP_PROXY) {
-		args.unshift('--proxy', YTDLP_PROXY);
-	}
+async function downloadAudioMp3(url: string, outPath: string): Promise<void> {
+	const hasCookies = await hasCookiesFile();
 
-	// If a cookies file exists, pass it to yt-dlp to bypass YouTube bot detection.
+	// Phase 1: try without cookies first (most videos don't need them)
 	try {
-		await stat(YTDLP_COOKIES);
-		args.unshift('--cookies', YTDLP_COOKIES);
-	} catch {
-		// No cookies file — proceed without
+		await runYtdlpWithRetries(buildAudioArgs(url, outPath, false));
+		return;
+	} catch (err) {
+		const message = err instanceof Error ? err.message : String(err);
+		if (!isAuthRequiredError(message)) {
+			throw err;
+		}
+		console.warn('[yt-dlp] auth required, will retry with cookies');
 	}
 
-	await spawnCapture('yt-dlp', args);
+	// Phase 2: auth required — retry with cookies
+	if (!hasCookies) {
+		throw new Error(
+			'YouTube requires login verification for this video but no cookies.txt file was found. ' +
+			'Please upload YouTube cookies via Settings to process this video.'
+		);
+	}
+
+	try {
+		await runYtdlpWithRetries(buildAudioArgs(url, outPath, true));
+	} catch (err) {
+		const message = err instanceof Error ? err.message : String(err);
+		if (isCookiesExpiredError(message) || isAuthRequiredError(message)) {
+			throw new Error(
+				'YouTube cookies have expired. Please re-export and upload fresh cookies via Settings to process this video.'
+			);
+		}
+		throw err;
+	}
 }
 
 async function ffprobeDuration(filePath: string): Promise<number | null> {
@@ -230,7 +223,8 @@ async function transcribeChunkOpenAI(
 		const resp = await fetch(`${baseUrl}/audio/transcriptions`, {
 			method: 'POST',
 			headers: { Authorization: `Bearer ${apiKey}` },
-			body: form
+			body: form,
+			signal: AbortSignal.timeout(WHISPER_REQUEST_TIMEOUT_MS)
 		});
 
 		const text = await resp.text();

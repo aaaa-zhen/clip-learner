@@ -2,6 +2,7 @@
 	import '../app.css';
 	import { authModalOpen } from '$lib/stores/auth';
 	import { initTheme } from '$lib/stores/theme';
+	import { exportAndClearGuestVocab } from '$lib/utils/guestVocab';
 	import { onMount } from 'svelte';
 
 	let { children, data } = $props();
@@ -53,6 +54,20 @@
 			if (data.error) {
 				authError = data.error;
 			} else {
+				// Migrate guest localStorage vocab to the real account
+				const guestWords = exportAndClearGuestVocab();
+				if (guestWords.length > 0) {
+					await Promise.allSettled(
+						guestWords.map((w) =>
+							fetch('/api/notebook', {
+								method: 'POST',
+								headers: { 'Content-Type': 'application/json' },
+								body: JSON.stringify(w)
+							})
+						)
+					);
+				}
+
 				if (authTab === 'signup') {
 					localStorage.setItem('clip-just-signed-up', '1');
 					authSuccess = 'Account created! Logging you in…';
@@ -100,7 +115,7 @@
 				<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
 			</button>
 			<div class="auth-logo">Clip Learner</div>
-			<p class="auth-prompt">Sign up to save words and track your progress.</p>
+			<p class="auth-prompt">Sign in to sync your vocabulary and progress across devices.</p>
 
 			<div class="auth-tabs">
 				<button class="auth-tab" class:active={authTab === 'login'} onclick={() => { authTab = 'login'; authError = ''; }}>Log in</button>

@@ -124,6 +124,10 @@ function initSchema() {
 	} catch { /* column already exists */ }
 
 	try {
+		db.exec('ALTER TABLE episodes ADD COLUMN pinned_at TEXT');
+	} catch { /* column already exists */ }
+
+	try {
 		db.exec('ALTER TABLE vocab_notebook ADD COLUMN source_time REAL');
 	} catch { /* column already exists */ }
 
@@ -146,6 +150,17 @@ function initSchema() {
 		CREATE INDEX IF NOT EXISTS idx_episodes_user ON episodes(user_id);
 		CREATE INDEX IF NOT EXISTS idx_vocab_user    ON vocab_notebook(user_id);
 		CREATE UNIQUE INDEX IF NOT EXISTS idx_episodes_user_video ON episodes(user_id, video_id);
+	`);
+
+	// Usage quota tracking (daily limits for shared API key users)
+	db.exec(`
+		CREATE TABLE IF NOT EXISTS usage_log (
+			id         INTEGER PRIMARY KEY AUTOINCREMENT,
+			user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			action     TEXT NOT NULL,
+			created_at TEXT DEFAULT (datetime('now'))
+		);
+		CREATE INDEX IF NOT EXISTS idx_usage_user_date ON usage_log(user_id, created_at);
 	`);
 
 	// Article Reader tables

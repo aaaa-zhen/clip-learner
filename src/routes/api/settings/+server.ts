@@ -1,17 +1,24 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { query } from '$lib/server/db';
+import { getSettings } from '$lib/server/claude';
 
 export const GET: RequestHandler = async ({ locals }) => {
 	const userId = locals.user!.id;
 	const { rows } = await query('SELECT key, value FROM user_settings WHERE user_id = $1', [userId]);
 	const settings: Record<string, string> = {};
 	for (const row of rows) {
-		// Mask the API key for security
 		if (row.key === 'api_key') {
 			settings[row.key] = row.value ? '••••••••' + row.value.slice(-4) : '';
 		} else {
 			settings[row.key] = row.value;
+		}
+	}
+	// If user has no personal API key, check if server has a shared one
+	if (!settings.api_key) {
+		const resolved = await getSettings(userId);
+		if (resolved.api_key) {
+			settings.api_key = '(server)';
 		}
 	}
 	return json(settings);

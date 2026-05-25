@@ -1209,38 +1209,33 @@
 	</div>
 </div>
 
-<!-- Line help drawer -->
+<!-- Line help popup -->
+{#if lineHelpOpen}
 <div
-	class="drawer"
-	class:open={lineHelpOpen}
+	class="help-popup"
 	bind:this={lineHelpDrawerEl}
 	role="dialog"
 	aria-modal="true"
 	aria-labelledby="line-help-dialog-title"
-	aria-hidden={!lineHelpOpen}
-	inert={!lineHelpOpen}
 	tabindex="-1"
 >
-	<div class="drawer-head">
-		<div class="drawer-head-row">
-			<h2 id="line-help-dialog-title">Line help</h2>
-			{#if lineHelpTime}<span class="drawer-count">{lineHelpTime}</span>{/if}
-			<button type="button" class="drawer-close" onclick={() => lineHelpOpen = false} aria-label="Close line help"><X size={18} /></button>
-		</div>
+	<div class="help-popup-head">
+		<h2 id="line-help-dialog-title">Line help</h2>
+		{#if lineHelpTime}<span class="drawer-count">{lineHelpTime}</span>{/if}
+		<button type="button" class="drawer-close" onclick={() => lineHelpOpen = false} aria-label="Close"><X size={18} /></button>
 	</div>
-	<div class="drawer-body">
-		{#if lineHelpText}
-			<div class="help-ctx"><p class="help-quote">{lineHelpText}</p></div>
-		{/if}
-		{#if loadingExplanation}
-			<div class="loading-dots">
-				<span class="dot"></span><span class="dot"></span><span class="dot"></span>
-			</div>
-			{:else if explanation}
-				<div class="help-content">{explanation}</div>
-			{/if}
+	{#if lineHelpText}
+		<div class="help-ctx"><p class="help-quote">{lineHelpText}</p></div>
+	{/if}
+	{#if loadingExplanation}
+		<div class="loading-dots">
+			<span class="dot"></span><span class="dot"></span><span class="dot"></span>
 		</div>
+	{:else if explanation}
+		<div class="help-content">{explanation}</div>
+	{/if}
 </div>
+{/if}
 
 <!-- Quiz modal -->
 {#if quizOpen}
@@ -1547,6 +1542,7 @@
 		max-width: 46ch;
 		margin: 0;
 		line-height: 1.6;
+		white-space: pre-line;
 	}
 
 	/* Processing panel */
@@ -1924,15 +1920,47 @@
 	}
 	.nb-source:hover { color: var(--accent); }
 
+	.help-popup {
+		position: fixed;
+		top: 50%; left: 50%;
+		transform: translate(-50%, -50%);
+		z-index: 70;
+		width: min(520px, 90vw);
+		max-height: 80vh;
+		overflow-y: auto;
+		background: var(--gray2);
+		border: 1px solid var(--gray4);
+		border-radius: var(--radius-lg);
+		box-shadow: var(--shadow-lg);
+		padding: 24px;
+		animation: helpPopIn var(--duration-fast) var(--ease);
+	}
+	@keyframes helpPopIn {
+		from { opacity: 0; transform: translate(-50%, -48%); }
+		to   { opacity: 1; transform: translate(-50%, -50%); }
+	}
+	.help-popup-head {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		margin-bottom: 16px;
+	}
+	.help-popup-head h2 {
+		font-size: 17px;
+		font-weight: 600;
+		flex: 1;
+		color: var(--gray12);
+		letter-spacing: -0.01em;
+	}
 	.help-ctx {
 		background: var(--gray3);
 		border-left: 3px solid var(--accent);
 		border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-		padding: 12px 14px;
-		margin: 14px 10px 18px;
+		padding: 12px 16px;
+		margin-bottom: 18px;
 	}
-	.help-quote { font-size: 15px; line-height: 1.5; color: var(--gray12); font-style: italic; margin: 0; }
-	.help-content { padding: 0 12px; font-size: 14px; line-height: 1.7; color: var(--gray12); white-space: pre-line; }
+	.help-quote { font-size: 15px; line-height: 1.55; color: var(--gray12); font-style: italic; margin: 0; }
+	.help-content { font-size: 14px; line-height: 1.75; color: var(--gray12); white-space: pre-line; }
 
 	.loading-dots { display: flex; justify-content: center; gap: 6px; padding: 30px; }
 	.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: bounce 1.2s ease-in-out infinite; }

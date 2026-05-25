@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import { query } from './db';
+import { query, transaction } from './db';
 // Use SvelteKit's dynamic env accessor — `vite dev` doesn't push .env into
 // process.env, so reading ANTHROPIC_* from process.env silently failed.
 import { env } from '$env/dynamic/private';
@@ -9,6 +9,9 @@ const DEFAULTS = {
 	base_url: 'https://aihubmix.com/v1',
 	model: 'gpt-5.4-mini'
 };
+
+/** Daily LLM call limit for guests / shared-key users (~2-3 videos with study). */
+const DAILY_QUOTA = Number(env.DAILY_QUOTA || 20);
 
 export async function getSettings(userId: number): Promise<typeof DEFAULTS> {
 	try {
@@ -44,6 +47,39 @@ export async function getSettings(userId: number): Promise<typeof DEFAULTS> {
 	}
 }
 
+/** Check if this user has their own API key or is using the shared server key. */
+async function isUsingSharedKey(userId: number): Promise<boolean> {
+	const { rows } = await query(
+		"SELECT value FROM user_settings WHERE user_id = $1 AND key = 'api_key'",
+		[userId]
+	);
+	return !rows.length || !rows[0].value;
+}
+
+/**
+ * Atomically check quota and log usage in one transaction.
+ * Returns the current count AFTER inserting. Throws if over quota.
+ */
+async function checkAndLogUsage(userId: number, action: string): Promise<void> {
+	await transaction(async () => {
+		const { rows } = await query(
+			"SELECT count(*) as count FROM usage_log WHERE user_id = $1 AND created_at > datetime('now', '-1 day')",
+			[userId]
+		);
+		const used = Number(rows[0]?.count || 0);
+		if (used >= DAILY_QUOTA) {
+			throw new Error(
+				`You've used all ${DAILY_QUOTA} free requests for today. ` +
+				'To keep learning, you can:\n' +
+				'• Add your own API key in Settings for unlimited use\n' +
+				'• Wait until tomorrow for your free quota to reset\n' +
+				'• Contact m502002313@gmail.com for help or to request more quota'
+			);
+		}
+		await query('INSERT INTO usage_log (user_id, action) VALUES ($1, $2)', [userId, action]);
+	});
+}
+
 async function chat(
 	prompt: string,
 	maxTokens: number,
@@ -53,6 +89,12 @@ async function chat(
 	const settings = await getSettings(userId);
 	if (!settings.api_key) {
 		throw new Error('API key not configured. Go to Settings to add your API key.');
+	}
+
+	// Enforce daily quota for users on the shared server key (atomic check+log)
+	const usingShared = await isUsingSharedKey(userId);
+	if (usingShared) {
+		await checkAndLogUsage(userId, 'chat');
 	}
 	const client = new OpenAI({
 		apiKey: settings.api_key,
@@ -70,7 +112,8 @@ async function chat(
 		body.response_format = { type: 'json_object' };
 	}
 	const res = await client.chat.completions.create(body as any);
-	return res.choices[0]?.message?.content || '';
+	const content = res.choices[0]?.message?.content || '';
+	return content;
 }
 
 /**

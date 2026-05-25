@@ -3,6 +3,8 @@
 	import { currentTime, isPlaying, subtitleVisible } from '$lib/stores/player';
 	import { requireAuth } from '$lib/stores/auth';
 	import { playPronunciation } from '$lib/utils/tts';
+	import { saveGuestWord } from '$lib/utils/guestVocab';
+	import { page } from '$app/stores';
 
 	interface LookupContext {
 		episodeTitle?: string;
@@ -160,11 +162,15 @@
 				body: JSON.stringify({ word: w, context })
 			});
 			const data = await res.json();
-			entry = data.definition || { definition: 'No definition found.' };
-			if (entry.phrase) word = entry.phrase;
-			if (entry.definition && entry.definition !== 'No definition found.') {
-				if (explainCache.size >= 200) explainCache.delete(explainCache.keys().next().value!);
-				explainCache.set(cacheKey, entry);
+			if (data.error) {
+				entry = { definition: data.error };
+			} else {
+				entry = data.definition || { definition: 'No definition found.' };
+				if (entry.phrase) word = entry.phrase;
+				if (entry.definition && entry.definition !== 'No definition found.') {
+					if (explainCache.size >= 200) explainCache.delete(explainCache.keys().next().value!);
+					explainCache.set(cacheKey, entry);
+				}
 			}
 		} catch {
 			entry = { definition: 'Could not look up this word.' };
@@ -235,41 +241,40 @@
 
 	async function saveWord() {
 		if (!word || !entry.definition) return;
+		const isGuest = $page.data.user?.isGuest;
+		const wordData = {
+			word,
+			definition: entry.definition,
+			example: entry.example || '',
+			phonetic: entry.phonetic || '',
+			source_text: trimSourceText(lookupContext?.currentLine || '', word),
+			episode_id: episodeId || null,
+			episode_title: episodeTitle || null,
+			source_time: episodeId ? lookupContext?.sourceTime ?? $currentTime : null,
+			category: entry.partOfSpeech || 'general'
+		};
+
 		try {
-			const res = await fetch('/api/notebook', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					word,
-					definition: entry.definition,
-					example: entry.example || '',
-					phonetic: entry.phonetic || '',
-					source_text: trimSourceText(lookupContext?.currentLine || '', word),
-					episode_id: episodeId || null,
-					source_time: episodeId ? lookupContext?.sourceTime ?? $currentTime : null,
-					category: entry.partOfSpeech || 'general'
-				})
-			});
-			if (res.status === 401) {
-				requireAuth();
-				return;
-			}
-			if (res.status === 409) {
-				saved = true;
-				return;
-			}
-			if (!res.ok) {
-				throw new Error('Save failed');
+			if (isGuest) {
+				const result = saveGuestWord(wordData);
+				if (result.duplicate) { saved = true; return; }
+			} else {
+				const res = await fetch('/api/notebook', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify(wordData)
+				});
+				if (res.status === 401) { requireAuth(); return; }
+				if (res.status === 409) { saved = true; return; }
+				if (!res.ok) throw new Error('Save failed');
 			}
 			saved = true;
-			// Show toast (use toastWord so it persists after popup closes)
 			toastWord = word;
 			toastVisible = true;
 			if (toastTimer) clearTimeout(toastTimer);
 			toastTimer = setTimeout(() => { toastVisible = false; }, 2500);
-			// Notify episode page to increment count + update notebook drawer
 			window.dispatchEvent(new CustomEvent('word:saved', {
-				detail: { word, definition: entry.definition, example: entry.example, phonetic: entry.phonetic || '', source_text: lookupContext?.currentLine || '', category: entry.partOfSpeech || 'general', source_time: episodeId ? lookupContext?.sourceTime ?? $currentTime : null }
+				detail: { ...wordData, source_text: lookupContext?.currentLine || '' }
 			}));
 			window.getSelection()?.removeAllRanges();
 		} catch {
@@ -634,6 +639,7 @@
 		color: var(--text);
 		margin: 0;
 		padding: 12px 0 8px;
+		white-space: pre-line;
 		font-weight: 500;
 	}
 

@@ -2,13 +2,19 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { query } from '$lib/server/db';
 
 const COOKIES_PATH = path.join(process.cwd(), 'cookies.txt');
 
 // Only the first user (site owner) can upload cookies
 export const POST: RequestHandler = async ({ request, locals }) => {
-	if (!locals.user || locals.user.id !== 4) {
+	if (!locals.user) {
 		return json({ error: 'Unauthorized' }, { status: 403 });
+	}
+
+	const { rows: [owner] } = await query("SELECT MIN(id) as id FROM users WHERE username NOT LIKE 'guest_%'");
+	if (!owner?.id || locals.user.id !== Number(owner.id)) {
+		return json({ error: 'Only the site owner can upload cookies' }, { status: 403 });
 	}
 
 	const formData = await request.formData().catch(() => null);

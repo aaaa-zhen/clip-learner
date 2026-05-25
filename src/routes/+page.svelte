@@ -9,7 +9,7 @@
 		Clock, CheckCircle2, Loader2, AlertCircle, Trash2,
 		BookMarked, Plus, Clapperboard, RotateCcw, Settings, LogOut,
 		Headphones, MousePointerClick, BrainCircuit, FileText, BookOpen, Link,
-		Sun, Moon, Monitor
+		Sun, Moon, Monitor, Pin, PinOff
 	} from 'lucide-svelte';
 	import SettingsModal from '$lib/components/SettingsModal.svelte';
 	import { authModalOpen } from '$lib/stores/auth';
@@ -162,11 +162,6 @@ function isSupportedUrl(u: string): boolean {
 			error = 'Please paste a valid YouTube or X/Twitter video URL';
 			return;
 		}
-		if (!data.user) {
-			localStorage.setItem('clip-pending-url', url.trim());
-			authModalOpen.set(true);
-			return;
-		}
 		// Check if API key is configured before starting
 		try {
 			const settingsRes = await fetch('/api/settings');
@@ -200,6 +195,26 @@ function isSupportedUrl(u: string): boolean {
 		}
 	}
 
+	async function togglePin(e: MouseEvent, id: string) {
+		e.preventDefault();
+		e.stopPropagation();
+		const ep = episodes.find((ep) => ep.id === id);
+		if (!ep) return;
+		const action = ep.pinned_at ? 'unpin' : 'pin';
+		await fetch('/api/process', {
+			method: 'PATCH',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ id, action })
+		});
+		ep.pinned_at = action === 'pin' ? new Date().toISOString() : null;
+		// Re-sort: pinned first, then by created_at
+		episodes = [...episodes].sort((a, b) => {
+			if (a.pinned_at && !b.pinned_at) return -1;
+			if (!a.pinned_at && b.pinned_at) return 1;
+			return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+		});
+	}
+
 	function deleteEpisode(e: MouseEvent, id: string) {
 		e.preventDefault();
 		e.stopPropagation();
@@ -209,7 +224,6 @@ function isSupportedUrl(u: string): boolean {
 	}
 
 	async function handleArticleSubmit() {
-		if (!data.user) { authModalOpen.set(true); return; }
 		articleLoading = true;
 		articleError = '';
 		try {
@@ -326,17 +340,15 @@ function isSupportedUrl(u: string): boolean {
 			Clip Learner
 		</span>
 		<div class="nav-right">
-			{#if data.user}
-				<a href="/articles/new" class="nav-link">
-					<FileText size={14} aria-hidden="true" />
-					Articles
-				</a>
-				<a href="/notebook" class="nav-link">
-					<BookMarked size={14} aria-hidden="true" />
-					Notebook
-					{#if wordsSaved > 0}<span class="nav-badge">{wordsSaved}</span>{/if}
-				</a>
-			{/if}
+			<a href="/articles/new" class="nav-link">
+				<FileText size={14} aria-hidden="true" />
+				Articles
+			</a>
+			<a href="/notebook" class="nav-link">
+				<BookMarked size={14} aria-hidden="true" />
+				Notebook
+				{#if wordsSaved > 0}<span class="nav-badge">{wordsSaved}</span>{/if}
+			</a>
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div class="theme-wrap" onkeydown={handleThemeMenuKeydown}>
 				<button
@@ -375,7 +387,7 @@ function isSupportedUrl(u: string): boolean {
 					</div>
 				{/if}
 			</div>
-			{#if data.user}
+			{#if !data.user?.isGuest}
 				<button
 					type="button"
 					class="theme-toggle"
@@ -384,13 +396,15 @@ function isSupportedUrl(u: string): boolean {
 				>
 					<Settings size={14} aria-hidden="true" />
 				</button>
+			{/if}
+			{#if data.user?.isGuest}
+				<button type="button" class="signin-btn" onclick={() => authModalOpen.set(true)}>
+					Sign in
+				</button>
+			{:else if data.user}
 				<button type="button" class="user-chip" title="Log out" onclick={handleLogout}>
 					{data.user.username}
 					<LogOut size={12} aria-hidden="true" />
-				</button>
-			{:else}
-				<button type="button" class="signin-btn" onclick={() => authModalOpen.set(true)}>
-					Sign in
 				</button>
 			{/if}
 		</div>
@@ -532,6 +546,20 @@ function isSupportedUrl(u: string): boolean {
 							{/if}
 							<button
 								type="button"
+								class="pin-btn"
+								class:pinned={!!ep.pinned_at}
+								onclick={(e) => togglePin(e, ep.id)}
+								aria-label={ep.pinned_at ? 'Unpin' : 'Pin to top'}
+								title={ep.pinned_at ? 'Unpin' : 'Pin to top'}
+							>
+								{#if ep.pinned_at}
+									<PinOff size={13} aria-hidden="true" />
+								{:else}
+									<Pin size={13} aria-hidden="true" />
+								{/if}
+							</button>
+							<button
+								type="button"
 								class="delete-btn"
 								onclick={(e) => deleteEpisode(e, ep.id)}
 								aria-label={`Remove ${ep.title || 'clip'}`}
@@ -653,7 +681,7 @@ function isSupportedUrl(u: string): boolean {
 
 </div>
 
-<SettingsModal bind:open={settingsOpen} />
+<SettingsModal bind:open={settingsOpen} isGuest={data.user?.isGuest ?? false} />
 
 {#if deleteConfirmId}
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -1017,6 +1045,7 @@ function isSupportedUrl(u: string): boolean {
 		display: flex;
 		align-items: center;
 		gap: 5px;
+		white-space: pre-line;
 	}
 
 
@@ -1250,7 +1279,7 @@ function isSupportedUrl(u: string): boolean {
 	.clip:hover .resume-btn { border-color: var(--gray6); }
 	.resume-btn:hover { text-decoration: none; }
 
-	.delete-btn {
+	.pin-btn, .delete-btn {
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -1262,8 +1291,12 @@ function isSupportedUrl(u: string): boolean {
 		transition: background var(--duration-fast) var(--ease), color var(--duration-fast) var(--ease);
 		opacity: 0;
 	}
+	.clip:hover .pin-btn,
+	.clip:focus-within .pin-btn,
 	.clip:hover .delete-btn,
 	.clip:focus-within .delete-btn { opacity: 1; }
+	.pin-btn.pinned { opacity: 1; color: var(--accent); }
+	.pin-btn:hover { background: var(--gray3); color: var(--accent); }
 	.delete-btn:hover { background: var(--gray3); color: var(--red); }
 
 	/* ── Footer ── */
@@ -1313,7 +1346,7 @@ function isSupportedUrl(u: string): boolean {
 			padding: 12px 14px;
 		}
 		.clip-actions { grid-column: 2; }
-		.delete-btn, .resume-btn { opacity: 1; }
+		.pin-btn, .delete-btn, .resume-btn { opacity: 1; }
 	}
 
 	/* ── Delete modal ── */

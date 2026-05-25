@@ -36,7 +36,17 @@
       "Bash(PEM=\"/Users/mafuzhen/Library/Containers/com.tencent.xinWeChat/Data/Documents/xwechat_files/shoujineng7373_ca92/business/favorite/temp/my.pem\")",
       "WebFetch(domain:www.agentation.com)",
       "WebFetch(domain:benji.org)",
-      "Bash(grep -n \"quiz-overlay\\\\|quiz-card\\\\|quiz-panel\\\\|quiz-backdrop\" /Users/mafuzhen/Desktop/MyProject/clip-learner/src/routes/episode/[id]/+page.svelte)"
+      "Bash(grep -n \"quiz-overlay\\\\|quiz-card\\\\|quiz-panel\\\\|quiz-backdrop\" /Users/mafuzhen/Desktop/MyProject/clip-learner/src/routes/episode/[id]/+page.svelte)",
+      "Bash(rsync -avz --delete -e \"ssh -i /Users/mafuzhen/Desktop/MyProject/clip-learner/my.pem\" /Users/mafuzhen/Desktop/MyProject/clip-learner/build/ ubuntu@43.134.87.27:~/clip-learner/build/)",
+      "Bash(yt-dlp --cookies-from-browser chrome --cookies /tmp/test-cookies.txt --dump-json --no-download 'https://www.youtube.com/watch?v=dQw4w9WgXcQ')",
+      "Read(//tmp/**)",
+      "Bash(rm -f /tmp/test-cookies.txt)",
+      "mcp__chrome-devtools__new_page",
+      "Skill(code-review:code-review)",
+      "Bash(pip3 install:*)",
+      "Bash(yt-dlp --remote-components ejs:github --cookies /Users/mafuzhen/Desktop/MyProject/clip-learner/cookies.txt --dump-json --no-download 'https://www.youtube.com/watch?v=mGRyV1FNux0')",
+      "Bash(/tmp/yt-dlp-nightly --version)",
+      "Bash(/tmp/yt-dlp-nightly --force-ipv4 --no-cookies --list-formats 'https://www.youtube.com/watch?v=jNQXAC9IVRw')"
     ]
   }
 }

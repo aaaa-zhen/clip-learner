@@ -17,5 +17,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 			vn.created_at DESC`,
 		[locals.user!.id]
 	);
-	return { entries: rows as (VocabEntry & { episode_title?: string | null; episode_url?: string | null })[] };
+	return {
+		entries: rows as (VocabEntry & { episode_title?: string | null; episode_url?: string | null })[],
+		user: locals.user ? { isGuest: locals.user.isGuest } : null
+	};
 };

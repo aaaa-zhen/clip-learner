@@ -98,6 +98,28 @@ export const DELETE: RequestHandler = async ({ request, locals }) => {
 	}
 };
 
+export const PATCH: RequestHandler = async ({ request, locals }) => {
+	const userId = locals.user!.id;
+	const { id, action } = await request.json();
+	if (!id) return json({ error: 'id is required' }, { status: 400 });
+
+	if (action === 'pin') {
+		await query(
+			"UPDATE episodes SET pinned_at = datetime('now') WHERE id = $1 AND user_id = $2",
+			[id, userId]
+		);
+		return json({ success: true });
+	}
+	if (action === 'unpin') {
+		await query(
+			'UPDATE episodes SET pinned_at = NULL WHERE id = $1 AND user_id = $2',
+			[id, userId]
+		);
+		return json({ success: true });
+	}
+	return json({ error: 'Unknown action' }, { status: 400 });
+};
+
 async function fetchAndAnalyze(
 	episodeId: string,
 	videoId: string,

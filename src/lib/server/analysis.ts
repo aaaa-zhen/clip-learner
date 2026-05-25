@@ -1,4 +1,4 @@
-import { query } from './db';
+import { query, transaction } from './db';
 import { parseSrt } from './subtitles';
 import { analyzeTranscript } from './claude';
 
@@ -9,31 +9,14 @@ export async function processEpisode(episodeId: string, subsText: string, userId
 	await query('UPDATE episodes SET status = $1 WHERE id = $2', ['analyzing', episodeId]);
 
 	try {
-		// Clean up any previous data for this episode
-		await query('DELETE FROM humor_annotations WHERE episode_id = $1', [episodeId]);
-		await query('DELETE FROM scene_breakdowns WHERE episode_id = $1', [episodeId]);
-		await query('DELETE FROM segments WHERE episode_id = $1', [episodeId]);
-
 		// Parse subtitles from text
 		const segments = parseSrt(subsText);
-
-		// Store segments
-		for (const seg of segments) {
-			await query(
-				'INSERT INTO segments (episode_id, index_num, start_time, end_time, text) VALUES ($1, $2, $3, $4, $5)',
-				[episodeId, seg.index, seg.startTime, seg.endTime, seg.text]
-			);
+		if (segments.length === 0) {
+			throw new Error('Transcription produced no usable caption segments.');
 		}
 
-		// Get segment IDs for annotation linking
-		const { rows: storedSegments } = await query(
-			'SELECT id, index_num FROM segments WHERE episode_id = $1 ORDER BY index_num',
-			[episodeId]
-		);
-
-		const segmentIdMap = new Map(storedSegments.map((s: any) => [s.index_num, s.id]));
-
-		// Analyze with Claude
+		// Run the slow, failure-prone LLM call before replacing existing DB
+		// rows, so a provider timeout doesn't leave the episode half-written.
 		const analysis = await analyzeTranscript(
 			segments.map(s => ({ index: s.index, text: s.text })),
 			userId
@@ -50,45 +33,68 @@ export async function processEpisode(episodeId: string, subsText: string, userId
 		const toStr = (v: unknown, fallback = ''): string =>
 			v == null ? fallback : String(v);
 
-		// Store annotations
-		for (const ann of analysis.annotations ?? []) {
-			const segId = segmentIdMap.get(ann.segment_index);
-			if (!segId) continue;
-			await query(
-				'INSERT INTO humor_annotations (episode_id, segment_id, category, explanation, excerpt, start_pos, end_pos) VALUES ($1, $2, $3, $4, $5, $6, $7)',
-				[
-					episodeId,
-					segId,
-					toStr(ann.category, 'general'),
-					toStr(ann.explanation),
-					toStr(ann.excerpt),
-					toInt(ann.start_pos, 0),
-					toInt(ann.end_pos, 0)
-				]
+		await transaction(async () => {
+			// Clean up any previous data for this episode
+			await query('DELETE FROM humor_annotations WHERE episode_id = $1', [episodeId]);
+			await query('DELETE FROM scene_breakdowns WHERE episode_id = $1', [episodeId]);
+			await query('DELETE FROM segments WHERE episode_id = $1', [episodeId]);
+
+			// Store segments
+			for (const seg of segments) {
+				await query(
+					'INSERT INTO segments (episode_id, index_num, start_time, end_time, text) VALUES ($1, $2, $3, $4, $5)',
+					[episodeId, seg.index, seg.startTime, seg.endTime, seg.text]
+				);
+			}
+
+			// Get segment IDs for annotation linking
+			const { rows: storedSegments } = await query(
+				'SELECT id, index_num FROM segments WHERE episode_id = $1 ORDER BY index_num',
+				[episodeId]
 			);
-		}
 
-		// Store scene breakdowns
-		for (const scene of analysis.scenes ?? []) {
-			await query(
-				'INSERT INTO scene_breakdowns (episode_id, start_seg, end_seg, title, explanation, humor_types) VALUES ($1, $2, $3, $4, $5, $6)',
-				[
-					episodeId,
-					toInt(scene.start_seg, 0),
-					toInt(scene.end_seg, 0),
-					toStr(scene.title),
-					toStr(scene.explanation),
-					JSON.stringify(Array.isArray(scene.humor_types) ? scene.humor_types : [])
-				]
-			);
-		}
+			const segmentIdMap = new Map(storedSegments.map((s: any) => [s.index_num, s.id]));
 
-		// Vocabulary suggestions from the LLM are stored in the analysis
-		// response but NOT auto-inserted into the notebook. Users save
-		// words themselves via the word popup or notebook drawer.
+			// Store annotations
+			for (const ann of analysis.annotations ?? []) {
+				const segId = segmentIdMap.get(ann.segment_index);
+				if (!segId) continue;
+				await query(
+					'INSERT INTO humor_annotations (episode_id, segment_id, category, explanation, excerpt, start_pos, end_pos) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+					[
+						episodeId,
+						segId,
+						toStr(ann.category, 'general'),
+						toStr(ann.explanation),
+						toStr(ann.excerpt),
+						toInt(ann.start_pos, 0),
+						toInt(ann.end_pos, 0)
+					]
+				);
+			}
 
-		// Mark as ready
-		await query('UPDATE episodes SET status = $1 WHERE id = $2', ['ready', episodeId]);
+			// Store scene breakdowns
+			for (const scene of analysis.scenes ?? []) {
+				await query(
+					'INSERT INTO scene_breakdowns (episode_id, start_seg, end_seg, title, explanation, humor_types) VALUES ($1, $2, $3, $4, $5, $6)',
+					[
+						episodeId,
+						toInt(scene.start_seg, 0),
+						toInt(scene.end_seg, 0),
+						toStr(scene.title),
+						toStr(scene.explanation),
+						JSON.stringify(Array.isArray(scene.humor_types) ? scene.humor_types : [])
+					]
+				);
+			}
+
+			// Vocabulary suggestions from the LLM are stored in the analysis
+			// response but NOT auto-inserted into the notebook. Users save
+			// words themselves via the word popup or notebook drawer.
+
+			// Mark as ready
+			await query('UPDATE episodes SET status = $1 WHERE id = $2', ['ready', episodeId]);
+		});
 	} catch (err) {
 		const message = err instanceof Error ? err.message : 'Unknown error';
 		await query('UPDATE episodes SET status = $1, error_message = $2 WHERE id = $3',

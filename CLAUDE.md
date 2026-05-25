@@ -40,7 +40,7 @@ No test framework is configured.
 
 ### Key Server Modules (`src/lib/server/`)
 
-- **`db.ts`** — SQLite via `node:sqlite` (`DatabaseSync`); schema auto-initialized on first use; tables: `episodes`, `segments`, `humor_annotations`, `scene_breakdowns`, `vocab_notebook`, `app_settings`, `user_settings`, `users`, `sessions`
+- **`db.ts`** — SQLite via `node:sqlite` (`DatabaseSync`); schema auto-initialized on first use; tables: `episodes`, `segments`, `humor_annotations`, `scene_breakdowns`, `vocab_notebook`, `app_settings`, `user_settings`, `users`, `sessions`, `resume_positions`, `usage_log`, `articles`, `article_annotations`. Migration-style `ALTER TABLE` blocks add columns idempotently (catch-and-ignore if column exists)
 - **`claude.ts`** — All LLM interactions: `analyzeTranscript()`, `explainSegment()`, `lookupWord()`, `generateQuiz()`. Uses the `openai` SDK (OpenAI-compatible endpoint). Default base URL is `aihubmix.com`
 - **`ytdlp.ts`** — Wraps `yt-dlp` CLI: video metadata, subtitle download (XML→SRT conversion), optional video download
 - **`whisper.ts`** — Transcription pipeline replacing yt-dlp captions. If `WHISPER_API_KEY` is set, uses OpenAI-compatible API; otherwise falls back to local `whisper` CLI
@@ -56,7 +56,7 @@ The `query()` export in `db.ts` wraps synchronous `node:sqlite` calls with an as
 
 ### Authentication
 
-Local username/password auth with cookie-based sessions (`clip_session`). `hooks.server.ts` validates sessions on every request, protects API and page routes, and redirects unauthenticated users to `/`. Most data is scoped by `user_id`.
+Local username/password auth with cookie-based sessions (`clip_session`). `hooks.server.ts` validates sessions on every request and scopes most data by `user_id`. **Guest users** are auto-created for unauthenticated browser page requests (username prefix `guest_`, `isGuest: true` on `locals.user`). Guest sessions get a 30-day cookie. Users can register/login to upgrade from guest.
 
 ### API Routes (`src/routes/api/`)
 
@@ -73,6 +73,11 @@ Local username/password auth with cookie-based sessions (`clip_session`). `hooks
 | `auth` | Register / login |
 | `logout` | End session |
 | `debug` | Debug helpers |
+| `cookies` | Sync browser cookies for yt-dlp |
+
+### Article Reader
+
+A secondary feature at `/articles/new` and `/articles/[id]`. Users paste article text/URL, the LLM annotates vocabulary and idioms (stored in `articles` + `article_annotations` tables), and the study UI provides word lookup and quiz generation — similar to the episode flow but for text content instead of video.
 
 ### LLM Configuration
 
@@ -90,6 +95,17 @@ Components use Svelte 5 runes (`$state()`, `$effect()`, `$derived()`) — not th
 
 `hooks.server.ts` detects `HTTPS_PROXY`/`HTTP_PROXY` env vars at boot and configures `undici`'s `EnvHttpProxyAgent` as the global fetch dispatcher.
 
+### Client Utilities (`src/lib/utils/`)
+
+- **`tts.ts`** — Browser speech synthesis for pronunciation
+- **`resume.ts`** — Video resume position tracking
+- **`guestVocab.ts`** — Client-side vocab storage for guest users
+- **`colors.ts`** / **`time.ts`** — Formatting helpers
+
 ### Humor Categories
 
 The annotation categories used throughout the type system and UI: `wordplay`, `cultural_reference`, `sarcasm`, `deadpan`, `callback`, `self_deprecation`, `banter`, `slang`, `idiom`, `absurdist`, `double_entendre`, `caption_error`.
+
+### Environment Variables
+
+See `.env.example` for all options. Beyond the basics (`ANTHROPIC_API_KEY`, `WHISPER_*`), notable yt-dlp tuning vars: `YTDLP_COOKIES` (Netscape cookie file path), `YTDLP_PROXY`, `YTDLP_FORCE_IPV4`, `YTDLP_REMOTE_COMPONENTS`, `YTDLP_PROCESS_RETRIES`.

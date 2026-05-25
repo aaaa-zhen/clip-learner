@@ -1,7 +1,9 @@
 import type { Handle } from '@sveltejs/kit';
+import { dev } from '$app/environment';
 import fs from 'fs';
 import path from 'path';
 import { query } from '$lib/server/db';
+import { createGuestUser } from '$lib/server/auth';
 import { runStartupTasks } from '$lib/server/startup';
 
 // Make Node.js fetch use the system proxy (needed locally behind a proxy/VPN)
@@ -33,10 +35,13 @@ export const handle: Handle = async ({ event, resolve }) => {
 				[sessionId]
 			);
 			if (rows.length > 0) {
-				event.locals.user = { id: rows[0].id as number, username: rows[0].username as string };
+				const username = rows[0].username as string;
+				event.locals.user = {
+					id: rows[0].id as number,
+					username,
+					isGuest: username.startsWith('guest_')
+				};
 			} else {
-				// Session expired or invalid — clear cookie and flag it so the
-				// UI can tell the user instead of silently redirecting to `/`.
 				event.cookies.delete('clip_session', { path: '/' });
 				sessionExpired = true;
 			}
@@ -46,44 +51,37 @@ export const handle: Handle = async ({ event, resolve }) => {
 		}
 	}
 
+	// Auto-create guest session only for real browser page requests (not bots/API/assets)
 	const currentPath = event.url.pathname;
-	const protectedApiRoutes = [
-		'/api/articles',
-		'/api/debug',
-		'/api/download',
-		'/api/episode',
-		'/api/explain',
-		'/api/highlight',
-		'/api/logout',
-		'/api/notebook',
-		'/api/process',
-		'/api/quiz',
-		'/api/resume',
-		'/api/settings',
-		'/api/stats',
-		'/api/translate',
-		'/api/upload-audio'
-	];
-	const protectedPagePrefixes = ['/episode/', '/notebook'];
-	const isProtectedApi = protectedApiRoutes.some((route) => currentPath.startsWith(route));
-	const isProtectedPage = protectedPagePrefixes.some((prefix) => currentPath.startsWith(prefix));
+	const skipGuestPaths = ['/api/', '/login', '/signup', '/favicon', '/media/'];
+	const isPageRequest = event.request.headers.get('accept')?.includes('text/html');
+	if (!event.locals.user && isPageRequest && !skipGuestPaths.some((p) => currentPath.startsWith(p))) {
+		try {
+			const { userId, sessionId: guestSessionId } = await createGuestUser();
+			event.cookies.set('clip_session', guestSessionId, {
+				path: '/',
+				httpOnly: true,
+				sameSite: 'lax',
+				maxAge: 60 * 60 * 24 * 30,
+				secure: !dev
+			});
+			const { rows } = await query('SELECT username FROM users WHERE id = $1', [userId]);
+			event.locals.user = {
+				id: userId,
+				username: rows[0].username as string,
+				isGuest: true
+			};
+		} catch (err) {
+			console.error('[hooks] failed to create guest user:', err);
+		}
+	}
 
-	if (isProtectedApi && !event.locals.user) {
-		const body = sessionExpired
-			? { error: 'Session expired', code: 'SESSION_EXPIRED' }
-			: { error: 'Unauthorized' };
-		return new Response(JSON.stringify(body), {
+	// Guard API routes: if no session, return 401 (edge case: expired cookie on XHR)
+	if (currentPath.startsWith('/api/') && !event.locals.user) {
+		return new Response(JSON.stringify({ error: 'Unauthorized' }), {
 			status: 401,
 			headers: { 'Content-Type': 'application/json' }
 		});
-	}
-
-	if (isProtectedPage && !event.locals.user) {
-		// Surface "you were signed out" via a query param so the landing page
-		// can show a flash message instead of the redirect looking random.
-		const target = new URL('/', event.url);
-		if (sessionExpired) target.searchParams.set('signed_out', '1');
-		return Response.redirect(target, 303);
 	}
 
 	// Serve media files (downloaded videos) only for the owning user

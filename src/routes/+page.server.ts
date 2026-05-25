@@ -10,7 +10,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const userId = locals.user.id;
 
 	const { rows: episodes } = await query(
-		'SELECT * FROM episodes WHERE user_id = $1 ORDER BY created_at DESC', [userId]
+		'SELECT * FROM episodes WHERE user_id = $1 ORDER BY pinned_at IS NOT NULL DESC, pinned_at DESC, created_at DESC', [userId]
 	);
 	const { rows: [clips] } = await query(
 		"SELECT count(*) as count FROM episodes WHERE status = $1 AND user_id = $2", ['ready', userId]

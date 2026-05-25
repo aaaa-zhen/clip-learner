@@ -12,6 +12,7 @@
 		Volume2
 	} from 'lucide-svelte';
 	import { playPronunciation } from '$lib/utils/tts';
+	import { getGuestVocab, deleteGuestWord } from '$lib/utils/guestVocab';
 
 	let { data } = $props();
 
@@ -26,7 +27,13 @@
 	const PAGE_SIZE = 20;
 
 	$effect(() => {
-		entries = data.entries;
+		if (data.user?.isGuest) {
+			if (typeof window !== 'undefined') {
+				entries = getGuestVocab() as NotebookEntry[];
+			}
+		} else {
+			entries = data.entries;
+		}
 	});
 
 	const wordEntries = $derived(entries.filter((e: any) => e.category !== 'sentence'));
@@ -113,11 +120,15 @@
 
 	async function removeWord(id: number) {
 		try {
-			await fetch('/api/notebook', {
-				method: 'DELETE',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ id })
-			});
+			if (data.user?.isGuest) {
+				deleteGuestWord(id);
+			} else {
+				await fetch('/api/notebook', {
+					method: 'DELETE',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ id })
+				});
+			}
 			entries = entries.filter((e: any) => e.id !== id);
 		} catch {
 			console.error('Failed to remove word');

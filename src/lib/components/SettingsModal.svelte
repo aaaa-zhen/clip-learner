@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { X, Loader2, CheckCircle2, Eye, EyeOff } from 'lucide-svelte';
 
-	let { open = $bindable(false) } = $props();
+	let { open = $bindable(false), isGuest = false } = $props();
 
 	let apiKey = $state('');
 	let baseUrl = $state('https://aihubmix.com');
@@ -88,6 +88,7 @@
 			</div>
 
 				<div class="modal-body">
+				{#if !isGuest}
 					<div class="field">
 						<label for="settings-api-key">API Key</label>
 						<div class="input-wrap">
@@ -129,13 +130,15 @@
 					{#if error}
 						<p class="error">{error}</p>
 					{/if}
+				{/if}
 				</div>
 
 
+				{#if !isGuest}
 				<!-- Cookies upload -->
 				<div class="settings-section">
 					<h3 class="section-title">YouTube Cookies</h3>
-					<p class="section-desc">Upload a Netscape-format cookies.txt to bypass bot detection.</p>
+					<p class="section-desc">Export youtube.com cookies from a logged-in browser in Netscape format, then upload the cookies.txt file here.</p>
 					<div class="cookies-row">
 						<label class="cookies-label">
 							<input type="file" accept=".txt,text/plain" onchange={(e) => { cookiesFile = (e.target as HTMLInputElement).files?.[0] ?? null; }} style="display:none" />
@@ -167,6 +170,7 @@
 						{/if}
 					</button>
 				</div>
+			{/if}
 		</div>
 	</div>
 {/if}

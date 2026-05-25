@@ -20,6 +20,7 @@ export interface Episode {
 	error_message: string | null;
 	created_at: string;
 	studied_at: string | null;
+	pinned_at: string | null;
 }
 
 export interface Segment {

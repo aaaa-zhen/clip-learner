@@ -2,33 +2,11 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { query } from '$lib/server/db';
 import { extractVideoId } from '$lib/server/ytdlp';
-import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
-
-function runCommand(cmd: string, args: string[]): Promise<void> {
-	return new Promise((resolve, reject) => {
-		const child = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] });
-		let output = '';
-
-		child.stdout.on('data', (chunk: Buffer) => {
-			output += chunk.toString();
-			output = output.slice(-4000);
-		});
-		child.stderr.on('data', (chunk: Buffer) => {
-			output += chunk.toString();
-			output = output.slice(-4000);
-		});
-		child.on('error', reject);
-		child.on('close', (code) => {
-			if (code === 0) {
-				resolve();
-			} else {
-				reject(new Error(`${cmd} exited ${code}: ${output.trim() || 'no output'}`));
-			}
-		});
-	});
-}
+import {
+	spawnCapture, baseYtdlpArgs, runYtdlpWithRetries
+} from '$lib/server/ytdlp-utils';
 
 export const POST: RequestHandler = async ({ request, locals }) => {
 	const userId = locals.user!.id;
@@ -53,7 +31,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 	// Check if yt-dlp is available
 	try {
-		await runCommand('yt-dlp', ['--version']);
+		await spawnCapture('yt-dlp', ['--version']);
 	} catch {
 		return json({ error: 'yt-dlp is not installed on this server' }, { status: 501 });
 	}
@@ -72,7 +50,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	const outputPath = path.join(mediaDir, 'video.mp4');
 	const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
 
-	runCommand('yt-dlp', [
+	runYtdlpWithRetries([
+		...baseYtdlpArgs(),
 		'-f',
 		'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
 		'--merge-output-format',

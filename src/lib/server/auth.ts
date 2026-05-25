@@ -42,3 +42,16 @@ export async function createSession(userId: number): Promise<string> {
 export async function deleteSession(sessionId: string): Promise<void> {
 	await query('DELETE FROM sessions WHERE id = $1', [sessionId]);
 }
+
+/** Create an anonymous guest user and return its session ID. */
+export async function createGuestUser(): Promise<{ userId: number; sessionId: string }> {
+	const guestName = `guest_${crypto.randomBytes(8).toString('hex')}`;
+	const dummyHash = await hashPassword(crypto.randomBytes(16).toString('hex'));
+	const { rows: [row] } = await query(
+		'INSERT INTO users (username, password) VALUES ($1, $2) RETURNING id',
+		[guestName, dummyHash]
+	);
+	const userId = row.id as number;
+	const sessionId = await createSession(userId);
+	return { userId, sessionId };
+}
