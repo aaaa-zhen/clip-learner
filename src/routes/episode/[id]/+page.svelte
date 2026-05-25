@@ -1922,21 +1922,23 @@
 
 	.help-popup {
 		position: fixed;
-		bottom: 24px; right: 24px;
+		bottom: 24px;
+		left: 50%;
+		transform: translateX(-50%);
 		z-index: 70;
-		width: min(420px, calc(100vw - 48px));
-		max-height: 50vh;
+		width: min(560px, calc(100vw - 48px));
+		max-height: 45vh;
 		overflow-y: auto;
 		background: var(--gray2);
 		border: 1px solid var(--gray4);
 		border-radius: var(--radius-lg);
-		box-shadow: var(--shadow-lg);
+		box-shadow: 0 -4px 24px rgba(0,0,0,0.12), var(--shadow-lg);
 		padding: 20px;
 		animation: helpSlideUp var(--duration-fast) var(--ease);
 	}
 	@keyframes helpSlideUp {
-		from { opacity: 0; transform: translateY(12px); }
-		to   { opacity: 1; transform: translateY(0); }
+		from { opacity: 0; transform: translateX(-50%) translateY(16px); }
+		to   { opacity: 1; transform: translateX(-50%) translateY(0); }
 	}
 	.help-popup-head {
 		display: flex;
