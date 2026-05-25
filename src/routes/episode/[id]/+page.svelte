@@ -1463,15 +1463,15 @@
 		overflow-x: hidden;
 		background: var(--gray2);
 		display: flex;
-		align-items: flex-start;
+		align-items: center;
 		justify-content: center;
 	}
 
 	.stage-inner {
 		width: 100%;
-		max-width: 920px;
+		max-width: clamp(600px, 65vw, 1100px);
 		margin: 0 auto;
-		padding: 24px 20px 24px;
+		padding: 24px 20px;
 		display: flex;
 		flex-direction: column;
 		gap: 0;
