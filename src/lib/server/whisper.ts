@@ -19,7 +19,7 @@ import { openAsBlob } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { env } from '$env/dynamic/private';
-import { getSettings, getLangConfig } from './claude';
+import { getSettings, getLangConfig, isUsingSharedKey } from './claude';
 import {
 	spawnCapture, sleep, runYtdlpWithRetries, baseYtdlpArgs,
 	hasCookiesFile, isAuthRequiredError, isCookiesExpiredError,
@@ -42,15 +42,15 @@ function normalizeOpenAIBaseUrl(value: string): string {
 
 /** Resolve Whisper API credentials: user settings first, then env vars. */
 async function getWhisperConfig(userId?: number): Promise<{ apiKey: string; baseUrl: string }> {
-	// Try user's own API key (same key they use for LLM)
-	if (userId) {
+	// Only use user's own API key if they explicitly configured one (not the shared server key)
+	if (userId && !(await isUsingSharedKey(userId))) {
 		const settings = await getSettings(userId);
 		if (settings.api_key) {
 			const baseUrl = normalizeOpenAIBaseUrl(settings.base_url || 'https://aihubmix.com');
 			return { apiKey: settings.api_key, baseUrl };
 		}
 	}
-	// Fall back to server-side env vars
+	// Fall back to server-side env vars (Groq Whisper key)
 	const apiKey = env.WHISPER_API_KEY || '';
 	const baseUrl = normalizeOpenAIBaseUrl(env.WHISPER_BASE_URL || 'https://api.openai.com/v1');
 	return { apiKey, baseUrl };

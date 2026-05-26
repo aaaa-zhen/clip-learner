@@ -60,12 +60,12 @@ export async function getSettings(userId: number): Promise<typeof DEFAULTS> {
 }
 
 /** Check if this user has their own API key or is using the shared server key. */
-async function isUsingSharedKey(userId: number): Promise<boolean> {
+export async function isUsingSharedKey(userId: number): Promise<boolean> {
 	const { rows } = await query(
 		"SELECT value FROM user_settings WHERE user_id = $1 AND key = 'api_key'",
 		[userId]
 	);
-	return !rows.length || !rows[0].value;
+	return !rows.length || !rows[0].value || rows[0].value === '(server)';
 }
 
 /**

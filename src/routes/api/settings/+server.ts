@@ -37,7 +37,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 				await query('DELETE FROM user_settings WHERE user_id = $1 AND key = $2', [userId, key]);
 			} else {
 				// Skip if masked value (no change)
-				if (key === 'api_key' && value.startsWith('••••')) continue;
+				if (key === "api_key" && (value.startsWith("••••") || value === "(server)")) continue;
 				await query(
 					`INSERT INTO user_settings (user_id, key, value) VALUES ($1, $2, $3)
 					 ON CONFLICT (user_id, key) DO UPDATE SET value = excluded.value`,
