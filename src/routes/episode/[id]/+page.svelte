@@ -1020,6 +1020,16 @@
 											<MessageCircle size={14} strokeWidth={2} aria-hidden="true" />
 											Explain
 										</button>
+										<button
+											type="button"
+											class="caption-action"
+											class:saved={sentenceSaved}
+											onclick={saveSentence}
+											disabled={!activeSegment || sentenceSaved}
+										>
+											<Bookmark size={14} strokeWidth={2} aria-hidden="true" />
+											{sentenceSaved ? 'Saved' : 'Save'}
+										</button>
 									</div>
 								</div>
 
