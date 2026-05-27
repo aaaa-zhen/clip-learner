@@ -6,10 +6,11 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const { rows } = await query(
 		`SELECT
 			vn.*,
-			e.title as episode_title,
-			e.url as episode_url
+			COALESCE(e.title, a.title) as episode_title,
+			COALESCE(e.url, a.url) as episode_url
 		FROM vocab_notebook vn
 		LEFT JOIN episodes e ON e.id = vn.episode_id AND e.user_id = vn.user_id
+		LEFT JOIN articles a ON a.id = vn.article_id AND a.user_id = vn.user_id
 		WHERE vn.user_id = $1
 		ORDER BY
 			CASE WHEN vn.reviewed_at IS NULL THEN 0 ELSE 1 END,

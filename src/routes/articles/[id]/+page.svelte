@@ -155,7 +155,7 @@
 				word: ann.text,
 				definition: ann.explanation,
 				example: '',
-				episode_id: null,
+				article_id: article.id,
 				category: ann.type
 			})
 		});

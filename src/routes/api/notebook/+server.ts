@@ -6,10 +6,11 @@ export const GET: RequestHandler = async ({ locals }) => {
 	const { rows } = await query(
 		`SELECT
 			vn.*,
-			e.title as episode_title,
-			e.url as episode_url
+			COALESCE(e.title, a.title) as episode_title,
+			COALESCE(e.url, a.url) as episode_url
 		FROM vocab_notebook vn
 		LEFT JOIN episodes e ON e.id = vn.episode_id AND e.user_id = vn.user_id
+		LEFT JOIN articles a ON a.id = vn.article_id AND a.user_id = vn.user_id
 		WHERE vn.user_id = $1
 		ORDER BY vn.created_at DESC`,
 		[locals.user!.id]
@@ -18,7 +19,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 };
 
 export const POST: RequestHandler = async ({ request, locals }) => {
-	const { word, definition, example, phonetic, source_text, episode_id, source_time, category } = await request.json();
+	const { word, definition, example, phonetic, source_text, episode_id, article_id, source_time, category } = await request.json();
 
 	if (!word) {
 		return json({ error: 'word is required' }, { status: 400 });
@@ -36,8 +37,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	const sourceTime = Number(source_time);
 	const normalizedSourceTime = Number.isFinite(sourceTime) && sourceTime >= 0 ? sourceTime : null;
 	const { rows: [row] } = await query(
-		'INSERT INTO vocab_notebook (word, definition, example, phonetic, source_text, episode_id, source_time, category, user_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id',
-		[word, definition, example, phonetic || '', source_text || '', episode_id || null, normalizedSourceTime, category || 'general', locals.user!.id]
+		'INSERT INTO vocab_notebook (word, definition, example, phonetic, source_text, episode_id, article_id, source_time, category, user_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id',
+		[word, definition, example, phonetic || '', source_text || '', episode_id || null, article_id || null, normalizedSourceTime, category || 'general', locals.user!.id]
 	);
 
 	return json({ id: row.id });
