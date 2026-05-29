@@ -18,32 +18,23 @@ non-protected location:
 └── my.pem            # copy of the VPS SSH key (chmod 600)
 ```
 
-The repo `sync-cookies.sh` is the source of truth / reference. **After editing it,
-re-copy it to the install dir** (and keep the `PEM=` line pointing at the installed
-key — see below).
-
-## Install / reinstall
+The repo `sync-cookies.sh` is the source of truth. The script derives its paths from
+its own location (`my.pem` sits next to it), so the same file works in both places —
+no hand-editing needed. **After editing it, just run:**
 
 ```bash
-DST="$HOME/Library/Application Support/clip-cookie-sync"
-mkdir -p "$DST"
-
-# 1. copy the SSH key (locked perms)
-cp ~/Desktop/MyProject/clip-learner/my.pem "$DST/my.pem"
-chmod 600 "$DST/my.pem"
-
-# 2. copy the script, then set its PEM line to the installed key
-cp ~/Desktop/MyProject/clip-learner/sync-cookies.sh "$DST/sync-cookies.sh"
-#   edit "$DST/sync-cookies.sh":  PEM="$HOME/Library/Application Support/clip-cookie-sync/my.pem"
-chmod +x "$DST/sync-cookies.sh"
-
-# 3. load the LaunchAgent (plist already at ~/Library/LaunchAgents/)
-launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.mafuzhen.clip-cookie-sync.plist
+npm run cookies:install
 ```
 
-The plist (`com.mafuzhen.clip-cookie-sync`) runs the script daily at **09:00** and
-**21:00**, and sets `PATH=/opt/homebrew/bin:/usr/bin:/bin:...` so launchd can find
-`yt-dlp` and `scp`. Logs go to `/tmp/sync-cookies.log`.
+That runs `scripts/install-cookie-sync.sh`, which copies `sync-cookies.sh` + `my.pem`
+into the install dir, fixes perms, and reloads the LaunchAgent. Idempotent — also use
+it for the first-time install.
+
+The plist (`com.mafuzhen.clip-cookie-sync`, at `~/Library/LaunchAgents/`) runs the
+script daily at **09:00** and **21:00**, and sets
+`PATH=/opt/homebrew/bin:/usr/bin:/bin:...` so launchd can find `yt-dlp` and `scp`.
+Logs go to `/tmp/sync-cookies.log`. If the plist itself is missing, the install
+script will say so — recreate it from the template in git history.
 
 ## Operate
 

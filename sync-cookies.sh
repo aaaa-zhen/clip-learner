@@ -4,16 +4,21 @@
 # This file is the SOURCE OF TRUTH, but launchd does NOT run it from here:
 # ~/Desktop is a macOS TCC-protected folder, so the launchd-spawned bash has no
 # permission to read/execute files under it (fails with exit 126 "Operation not
-# permitted"). The agent therefore runs an installed COPY from a non-protected
-# location. After editing this file, re-copy it (see COOKIE-SYNC-SETUP.md).
+# permitted"). The agent runs an installed COPY from a non-protected location.
 #
+#   After editing this file, run:  npm run cookies:install
+#   (copies this script + my.pem to the install dir and reloads the agent.)
+#
+# Paths below are relative to the script's own dir, so the same file works
+# whether run from the repo (manual) or from the installed copy (launchd).
 # Schedule: com.mafuzhen.clip-cookie-sync runs daily at 09:00 and 21:00.
+# Details: COOKIE-SYNC-SETUP.md
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COOKIE_FILE="/tmp/yt-cookies.txt"
-# Installed copy reads the pem from its own dir; this Desktop path is for manual runs only.
-PEM="/Users/mafuzhen/Desktop/MyProject/clip-learner/my.pem"
+PEM="$SCRIPT_DIR/my.pem"  # my.pem sits next to this script in both locations
 VPS="ubuntu@43.134.87.27"
 VPS_PATH="/home/ubuntu/clip-learner/cookies.txt"
 LOG="/tmp/sync-cookies.log"
