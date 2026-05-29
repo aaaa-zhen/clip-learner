@@ -63,7 +63,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 				httpOnly: true,
 				sameSite: 'lax',
 				maxAge: 60 * 60 * 24 * 30,
-				secure: !dev
+				secure: false // HTTP VPS: a Secure cookie won't persist over plain HTTP; revert to !dev once on HTTPS
 			});
 			const { rows } = await query('SELECT username FROM users WHERE id = $1', [userId]);
 			event.locals.user = {
@@ -76,8 +76,10 @@ export const handle: Handle = async ({ event, resolve }) => {
 		}
 	}
 
-	// Guard API routes: if no session, return 401 (edge case: expired cookie on XHR)
-	if (currentPath.startsWith('/api/') && !event.locals.user) {
+	// Guard API routes: if no session, return 401 (edge case: expired cookie on XHR).
+	// `/api/auth` is exempt — a cold client (e.g. the iOS app, with no guest
+	// cookie) must be able to log in / sign up. It has its own rate limiting.
+	if (currentPath.startsWith('/api/') && currentPath !== '/api/auth' && !event.locals.user) {
 		return new Response(JSON.stringify({ error: 'Unauthorized' }), {
 			status: 401,
 			headers: { 'Content-Type': 'application/json' }

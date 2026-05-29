@@ -41,7 +41,7 @@ export const actions: Actions = {
 			httpOnly: true,
 			sameSite: 'lax',
 			maxAge: 60 * 60 * 24 * 30,
-			secure: !dev
+			secure: false // HTTP VPS: a Secure cookie won't persist over plain HTTP; revert to !dev once on HTTPS
 		});
 
 		throw redirect(302, '/');

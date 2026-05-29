@@ -81,7 +81,7 @@ export const POST: RequestHandler = async ({ request, cookies, locals, getClient
 			httpOnly: true,
 			sameSite: 'lax',
 			maxAge: 60 * 60 * 24 * 30,
-			secure: !dev
+			secure: false // HTTP VPS: a Secure cookie won't persist over plain HTTP; revert to !dev once on HTTPS
 		});
 		return json({ ok: true });
 	}
@@ -106,7 +106,7 @@ export const POST: RequestHandler = async ({ request, cookies, locals, getClient
 			httpOnly: true,
 			sameSite: 'lax',
 			maxAge: 60 * 60 * 24 * 30,
-			secure: !dev
+			secure: false // HTTP VPS: a Secure cookie won't persist over plain HTTP; revert to !dev once on HTTPS
 		});
 		return json({ ok: true });
 	}

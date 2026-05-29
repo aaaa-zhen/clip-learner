@@ -350,22 +350,12 @@ export async function lookupWord(
 		return cached.value;
 	}
 
-	// Try free dictionary API first (instant, <200ms) — only works for English
+	// Always explain via the LLM (the kid-friendly, context-aware prompt below):
+	// it reads the surrounding line, detects phrases/idioms, and matches tone.
+	// The free dictionary path was dropped because it ignores context and tone.
 	const settings = await getSettings(userId);
 	const lang = settings.target_language || 'english';
 	const langLabel = getLangConfig(lang).label;
-	const langCfg = getLangConfig(lang);
-	const dictResult = langCfg.dictApi ? await tryFreeDictionary(word) : null;
-	if (dictResult && dictResult.definition && dictResult.example) {
-		if (lookupCache.size >= LOOKUP_CACHE_MAX) {
-			const firstKey = lookupCache.keys().next().value;
-			if (firstKey) lookupCache.delete(firstKey);
-		}
-		lookupCache.set(cacheKey, { value: dictResult, expiresAt: Date.now() + LOOKUP_TTL_MS });
-		return dictResult;
-	}
-
-	// Fall back to LLM for phrases, slang, or when dictionary has no result
 	const extraContext = [
 		context?.episodeTitle ? `Episode title: ${context.episodeTitle}` : '',
 		context?.source ? `Source: ${context.source}` : '',
