@@ -128,6 +128,10 @@ function initSchema() {
 	} catch { /* column already exists */ }
 
 	try {
+		db.exec('ALTER TABLE episodes ADD COLUMN category TEXT');
+	} catch { /* column already exists */ }
+
+	try {
 		db.exec('ALTER TABLE vocab_notebook ADD COLUMN source_time REAL');
 	} catch { /* column already exists */ }
 
