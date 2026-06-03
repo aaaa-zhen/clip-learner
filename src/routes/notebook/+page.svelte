@@ -3,6 +3,7 @@
 		ArrowLeft,
 		BookMarked,
 		BookOpen,
+		ChevronDown,
 		Clock,
 		Download,
 		Film,
@@ -28,7 +29,13 @@
 	let activeSource = $state<string | null>(null);
 	let currentPage = $state(1);
 	let reviewOpen = $state(false);
+	let filterOpen = $state(false);
 	const PAGE_SIZE = 20;
+
+	function selectSource(s: string | null) {
+		activeSource = s;
+		filterOpen = false;
+	}
 
 	$effect(() => {
 		if (data.user?.isGuest) {
@@ -72,6 +79,10 @@
 	});
 
 	const dueCount = $derived(filteredEntries.filter((e) => isDue(e as any)).length);
+
+	const activeSourceCount = $derived(
+		activeSource ? sources.find((s) => s.title === activeSource)?.count ?? 0 : wordEntries.length
+	);
 
 	const totalPages = $derived(Math.max(1, Math.ceil(filteredEntries.length / PAGE_SIZE)));
 	const pagedEntries = $derived(filteredEntries.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE));
@@ -190,18 +201,35 @@
 		</div>
 
 		{#if sources.length > 1}
-			<div class="source-filter-wrap">
-				<Film size={13} aria-hidden="true" />
-				<select
-					class="source-select"
-					value={activeSource || ''}
-					onchange={(e) => { const v = (e.target as HTMLSelectElement).value; activeSource = v || null; }}
+			<div class="source-filter">
+				<button
+					type="button"
+					class="filter-trigger"
+					class:open={filterOpen}
+					onclick={() => (filterOpen = !filterOpen)}
+					aria-haspopup="listbox"
+					aria-expanded={filterOpen}
 				>
-					<option value="">All clips ({wordEntries.length})</option>
-					{#each sources as src}
-						<option value={src.title}>{src.title} ({src.count})</option>
-					{/each}
-				</select>
+					<Film size={13} aria-hidden="true" />
+					<span class="filter-label">{activeSource ?? 'All clips'}</span>
+					<span class="filter-num">{activeSourceCount}</span>
+					<span class="filter-chev"><ChevronDown size={15} aria-hidden="true" /></span>
+				</button>
+				{#if filterOpen}
+					<button class="filter-backdrop" aria-label="Close filter" onclick={() => (filterOpen = false)}></button>
+					<div class="filter-menu" role="listbox">
+						<button type="button" class="filter-opt" class:on={!activeSource} onclick={() => selectSource(null)}>
+							<span class="opt-t">All clips</span>
+							<span class="opt-c">{wordEntries.length}</span>
+						</button>
+						{#each sources as src}
+							<button type="button" class="filter-opt" class:on={activeSource === src.title} onclick={() => selectSource(src.title)}>
+								<span class="opt-t">{src.title}</span>
+								<span class="opt-c">{src.count}</span>
+							</button>
+						{/each}
+					</div>
+				{/if}
 			</div>
 		{/if}
 
@@ -449,15 +477,13 @@
 		font-variant-numeric: tabular-nums;
 	}
 
-	.source-filter-wrap {
-		display: flex;
+	/* ── custom source filter dropdown ── */
+	.source-filter { position: relative; margin-bottom: 18px; }
+	.filter-trigger {
+		display: inline-flex;
 		align-items: center;
 		gap: 8px;
-		margin-bottom: 18px;
-		color: var(--gray9);
-	}
-	.source-select {
-		flex: 1;
+		max-width: 100%;
 		padding: 8px 12px;
 		border: 1px solid var(--gray4);
 		border-radius: var(--radius-sm);
@@ -465,10 +491,71 @@
 		color: var(--gray12);
 		font-family: var(--font-ui);
 		font-size: 13px;
+		font-weight: 500;
 		cursor: pointer;
-		transition: border-color var(--duration-fast) var(--ease);
+		transition: border-color var(--duration-fast) var(--ease), background var(--duration-fast) var(--ease);
 	}
-	.source-select:focus { outline: none; border-color: var(--accent); }
+	.filter-trigger:hover { border-color: var(--gray6); }
+	.filter-trigger.open { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+	.filter-trigger :global(svg) { color: var(--gray9); flex: 0 0 auto; }
+	.filter-label {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		max-width: 340px;
+	}
+	.filter-num {
+		color: var(--gray9);
+		font-variant-numeric: tabular-nums;
+	}
+	.filter-chev { display: inline-flex; transition: transform var(--duration-fast) var(--ease); }
+	.filter-trigger.open .filter-chev { transform: rotate(180deg); }
+
+	.filter-backdrop {
+		position: fixed;
+		inset: 0;
+		z-index: 30;
+		background: transparent;
+		border: none;
+		cursor: default;
+	}
+	.filter-menu {
+		position: absolute;
+		top: calc(100% + 6px);
+		left: 0;
+		z-index: 31;
+		min-width: 280px;
+		max-width: min(480px, 92vw);
+		max-height: 340px;
+		overflow-y: auto;
+		background: var(--bg-card);
+		border: 1px solid var(--gray4);
+		border-radius: var(--radius-md);
+		box-shadow: var(--shadow-lg);
+		padding: 5px;
+	}
+	.filter-opt {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+		width: 100%;
+		text-align: left;
+		padding: 8px 10px;
+		border: none;
+		background: transparent;
+		border-radius: var(--radius-sm);
+		color: var(--gray12);
+		font-family: var(--font-ui);
+		font-size: 13px;
+		cursor: pointer;
+		transition: background var(--duration-fast) var(--ease), color var(--duration-fast) var(--ease);
+	}
+	.filter-opt:hover { background: var(--gray3); }
+	.filter-opt.on { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+	.opt-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	.opt-c { flex: 0 0 auto; color: var(--gray9); font-variant-numeric: tabular-nums; }
+	.filter-opt.on .opt-c { color: var(--accent); }
 
 	/* ── card feed ── */
 	.feed { display: flex; flex-direction: column; gap: 14px; }
