@@ -13,7 +13,6 @@
 	import { isPlaying, currentTime } from '$lib/stores/player';
 	import { loadResumePosition, saveResumePosition } from '$lib/utils/resume';
 	import {
-		Bookmark,
 		BookOpen,
 		Captions,
 		CheckCircle,
@@ -274,8 +273,6 @@
 	const quizFinished = $derived(quizPhase === 'diagnosed');
 	const quizScore = $derived(answerRecords.filter((a) => a.correct).length);
 	let wordsSaved = $state(0);
-	let sentenceSaved = $state(false);
-	let sentenceSaveTimer: ReturnType<typeof setTimeout>;
 
 	$effect(() => {
 		episodeStatus = data.episode.status;
@@ -889,33 +886,6 @@
 		return Math.min(100, (completed / target) * 100);
 	});
 
-	async function saveSentence() {
-		if (!activeSegment?.text) return;
-		const text = activeSegment.text;
-		const words = text.trim().split(/\s+/);
-		const title = words.slice(0, 5).join(' ') + (words.length > 5 ? '\u2026' : '');
-		try {
-			const res = await fetch('/api/notebook', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					word: title,
-					definition: '',
-					example: text,
-					source_text: text,
-					episode_id: data.episode.id,
-					source_time: activeSegment.start_time,
-					category: 'sentence'
-				})
-			});
-			if (res.ok || res.status === 409) {
-				sentenceSaved = true;
-				clearTimeout(sentenceSaveTimer);
-				sentenceSaveTimer = setTimeout(() => { sentenceSaved = false; }, 2000);
-			}
-		} catch {}
-	}
-
 	async function saveWord(vocab: any) {
 		try {
 			await fetch('/api/notebook', {
@@ -1019,16 +989,6 @@
 										>
 											<MessageCircle size={14} strokeWidth={2} aria-hidden="true" />
 											Explain
-										</button>
-										<button
-											type="button"
-											class="caption-action"
-											class:saved={sentenceSaved}
-											onclick={saveSentence}
-											disabled={!activeSegment || sentenceSaved}
-										>
-											<Bookmark size={14} strokeWidth={2} aria-hidden="true" />
-											{sentenceSaved ? 'Saved' : 'Save'}
 										</button>
 									</div>
 								</div>
@@ -1733,11 +1693,6 @@
 		.caption-action:disabled {
 			opacity: 0.4;
 			cursor: not-allowed;
-		}
-		.caption-action.saved {
-			color: var(--green);
-			border-color: var(--green);
-			background: hsla(145 50% 48% / 0.08);
 		}
 		.caption-mode-btn:focus-visible,
 		.caption-action:focus-visible,
