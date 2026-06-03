@@ -60,13 +60,17 @@
 		return Array.from(map.entries()).map(([title, count]) => ({ title, count }));
 	});
 
+	// Words for the selected source only (ignores the search box) — also the
+	// scope used by Export, so you can export a single episode's vocabulary.
+	const sourceFiltered = $derived.by(() => {
+		if (!activeSource) return wordEntries;
+		return wordEntries.filter((e) =>
+			activeSource === 'Unsorted' ? !e.episode_title : e.episode_title === activeSource
+		);
+	});
+
 	const filteredEntries = $derived.by(() => {
-		let result = wordEntries;
-		if (activeSource) {
-			result = result.filter((e) =>
-				activeSource === 'Unsorted' ? !e.episode_title : e.episode_title === activeSource
-			);
-		}
+		let result = sourceFiltered;
 		const q = search.trim().toLowerCase();
 		if (q) {
 			result = result.filter((entry) =>
@@ -121,15 +125,22 @@
 		}
 	}
 
+	function slugify(text: string) {
+		return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 50) || 'export';
+	}
+
 	function exportJSON() {
-		const out = entries.map(({ word, definition, example, category, episode_title, source_time, created_at }) => ({
+		// Export the currently selected source (a single episode, or all clips).
+		const scope = sourceFiltered;
+		const out = scope.map(({ word, definition, example, category, episode_title, source_time, created_at }) => ({
 			word, definition, example, category, episode_title, source_time, created_at
 		}));
 		const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
 		const url = URL.createObjectURL(blob);
 		const a = document.createElement('a');
 		a.href = url;
-		a.download = `notebook-${new Date().toISOString().slice(0, 10)}.json`;
+		const scopeName = activeSource ? slugify(activeSource) : 'all-clips';
+		a.download = `notebook-${scopeName}-${new Date().toISOString().slice(0, 10)}.json`;
 		a.click();
 		URL.revokeObjectURL(url);
 	}
@@ -189,7 +200,11 @@
 				<Search size={14} aria-hidden="true" />
 				<input bind:value={search} placeholder="Search saved words" />
 			</label>
-			<button class="export-btn" onclick={exportJSON} title="Export as JSON">
+			<button
+				class="export-btn"
+				onclick={exportJSON}
+				title={activeSource ? `Export ${sourceFiltered.length} words from “${activeSource}”` : `Export all ${sourceFiltered.length} words`}
+			>
 				<Download size={14} aria-hidden="true" />
 				Export
 			</button>
