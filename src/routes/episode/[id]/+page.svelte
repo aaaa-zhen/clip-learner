@@ -21,7 +21,6 @@
 		Download,
 		HelpCircle,
 		ListTree,
-		MessageCircle,
 		Repeat2,
 		Volume2,
 		X,
@@ -33,8 +32,6 @@
 	let videoPlayer: YouTubePlayer | VideoPlayer | undefined = $state();
 	let videoPath = $state('');
 	const hasLocalVideo = $derived(!!videoPath);
-	let explanation = $state('');
-	let loadingExplanation = $state(false);
 	let downloading = $state(false);
 	let downloaded = $state(false);
 	let episodeStatus = $state('');
@@ -61,10 +58,6 @@
 	const isErrored = $derived(episodeStatus === 'error');
 	const isReady = $derived(episodeStatus === 'ready');
 
-	// Analysis panel state
-	let analysisTab = $state<'explanation' | 'scenes' | 'vocab'>('explanation');
-	let focusSegmentId = $state<number | null>(null);
-
 	type CaptionMode = 'listen' | 'shadowing';
 	type CaptionToken = { text: string; word: boolean; span?: HighlightSpan; key: string };
 	type CaptionSegment = Segment & { caption_key: string };
@@ -79,11 +72,7 @@
 	// Overlay state
 	let notebookOpen = $state(false);
 	let quizOpen = $state(false);
-	let lineHelpOpen = $state(false);
-	let lineHelpText = $state('');
-	let lineHelpTime = $state('');
 	let notebookDrawerEl: HTMLElement | undefined = $state();
-	let lineHelpDrawerEl: HTMLElement | undefined = $state();
 	let quizCardEl: HTMLDivElement | undefined = $state();
 	let lastFocusedElement: HTMLElement | null = null;
 	let overlayWasOpen = false;
@@ -328,33 +317,7 @@
 
 	function closeAll() { notebookOpen = false; quizOpen = false; }
 
-	function openNotebook() { lineHelpOpen = false; notebookOpen = true; }
-
-	function openLineHelp(segmentId: number, text: string, time: string) {
-		notebookOpen = false;
-		lineHelpText = text;
-		lineHelpTime = time;
-		lineHelpOpen = true;
-		fetchLineExplanation(segmentId);
-	}
-
-	async function fetchLineExplanation(segmentId: number) {
-		loadingExplanation = true;
-		explanation = '';
-		try {
-			const res = await fetch('/api/explain', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ segmentId })
-			});
-			const result = await res.json();
-			explanation = result.explanation || result.error || 'No explanation available.';
-		} catch {
-			explanation = 'Failed to get explanation.';
-		} finally {
-			loadingExplanation = false;
-		}
-	}
+	function openNotebook() { notebookOpen = true; }
 
 	async function openQuiz() {
 		currentQ = 0;
@@ -651,7 +614,6 @@
 
 	function getActiveDialogElement() {
 		if (quizOpen) return quizCardEl;
-		if (lineHelpOpen) return lineHelpDrawerEl;
 		if (notebookOpen) return notebookDrawerEl;
 		return null;
 	}
@@ -790,11 +752,6 @@
 		if (!$isPlaying) videoPlayer?.togglePlay?.();
 	}
 
-	function explainActiveCaption() {
-		if (!activeSegment) return;
-		handleExplain(activeSegment.id);
-	}
-
 	function seekCaptionSegment(segment: Segment | null) {
 		if (!segment) return;
 		videoPlayer?.seekTo(segment.start_time);
@@ -828,13 +785,6 @@
 		return categoryLabels[annotation.category as HumorCategory] || annotation.category.replace(/_/g, ' ');
 	}
 
-	function handleExplain(segmentId: number) {
-		const seg = data.segments.find((s: any) => s.id === segmentId);
-		// Update analysis panel to show this segment's explanation
-		focusSegmentId = segmentId;
-		analysisTab = 'explanation';
-		openLineHelp(segmentId, seg?.text || '', seg ? formatTime(seg.start_time) : '');
-	}
 
 	function formatTime(s: number) {
 		const m = Math.floor(s / 60);
@@ -1014,15 +964,6 @@
 										<button
 											type="button"
 											class="caption-action"
-											onclick={explainActiveCaption}
-											disabled={!activeSegment}
-										>
-											<MessageCircle size={14} strokeWidth={2} aria-hidden="true" />
-											Explain
-										</button>
-										<button
-											type="button"
-											class="caption-action"
 											class:saved={sentenceSaved}
 											onclick={saveSentence}
 											disabled={!activeSegment || sentenceSaved}
@@ -1071,15 +1012,13 @@
 										{#if showCaptionText && activeAnnotations.length > 0}
 											<div class="caption-insights" aria-label="Line annotations">
 												{#each activeAnnotations.slice(0, 3) as annotation}
-													<button
-														type="button"
+													<span
 														class="caption-chip"
 														style={annotationStyle(annotation)}
 														title={annotation.explanation}
-														onclick={(e) => { e.stopPropagation(); explainActiveCaption(); }}
 													>
 														{annotationLabel(annotation)}
-													</button>
+													</span>
 												{/each}
 											</div>
 										{/if}
@@ -1218,34 +1157,6 @@
 		<a href="/notebook" class="drawer-foot-link">Open full notebook →</a>
 	</div>
 </div>
-
-<!-- Line help popup -->
-{#if lineHelpOpen}
-<div
-	class="help-popup"
-	bind:this={lineHelpDrawerEl}
-	role="dialog"
-	aria-modal="true"
-	aria-labelledby="line-help-dialog-title"
-	tabindex="-1"
->
-	<div class="help-popup-head">
-		<h2 id="line-help-dialog-title">Line help</h2>
-		{#if lineHelpTime}<span class="drawer-count">{lineHelpTime}</span>{/if}
-		<button type="button" class="drawer-close" onclick={() => lineHelpOpen = false} aria-label="Close"><X size={18} /></button>
-	</div>
-	{#if lineHelpText}
-		<div class="help-ctx"><p class="help-quote">{lineHelpText}</p></div>
-	{/if}
-	{#if loadingExplanation}
-		<div class="loading-dots">
-			<span class="dot"></span><span class="dot"></span><span class="dot"></span>
-		</div>
-	{:else if explanation}
-		<div class="help-content">{@html explanation}</div>
-	{/if}
-</div>
-{/if}
 
 <!-- Quiz modal -->
 {#if quizOpen}
@@ -1929,89 +1840,6 @@
 		transition: color var(--duration-fast) var(--ease);
 	}
 	.nb-source:hover { color: var(--accent); }
-
-	.help-popup {
-		position: fixed;
-		bottom: 24px;
-		left: 50%;
-		transform: translateX(-50%);
-		z-index: 70;
-		width: min(560px, calc(100vw - 48px));
-		max-height: 45vh;
-		overflow-y: auto;
-		background: var(--gray2);
-		border: 1px solid var(--gray4);
-		border-radius: var(--radius-lg);
-		box-shadow: 0 -4px 24px rgba(0,0,0,0.12), var(--shadow-lg);
-		padding: 20px;
-		animation: helpSlideUp var(--duration-fast) var(--ease);
-	}
-	@keyframes helpSlideUp {
-		from { opacity: 0; transform: translateX(-50%) translateY(16px); }
-		to   { opacity: 1; transform: translateX(-50%) translateY(0); }
-	}
-	.help-popup-head {
-		display: flex;
-		align-items: center;
-		gap: 10px;
-		margin-bottom: 14px;
-	}
-	.help-popup-head h2 {
-		font-size: 16px;
-		font-weight: 600;
-		flex: 1;
-		color: var(--gray12);
-		letter-spacing: -0.01em;
-	}
-	.help-ctx {
-		background: var(--gray3);
-		border-left: 3px solid var(--accent);
-		border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-		padding: 12px 16px;
-		margin-bottom: 18px;
-	}
-	.help-quote { font-size: 15px; line-height: 1.55; color: var(--gray12); font-style: italic; margin: 0; }
-	.help-content { font-size: 14px; line-height: 1.6; color: var(--gray12); }
-	.help-content :global(.help-meaning) {
-		font-size: 15px;
-		line-height: 1.6;
-		color: var(--gray12);
-		margin-bottom: 10px;
-	}
-	.help-content :global(.help-note) {
-		font-size: 13px;
-		color: var(--gray9);
-		font-style: italic;
-		margin-bottom: 12px;
-	}
-	.help-content :global(.help-words) {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 6px;
-	}
-	.help-content :global(.help-word) {
-		display: inline-flex;
-		align-items: baseline;
-		gap: 4px;
-		font-size: 12px;
-		background: var(--gray3);
-		padding: 4px 10px;
-		border-radius: var(--radius-pill);
-		color: var(--gray11);
-	}
-	.help-content :global(.help-word b) {
-		color: var(--accent);
-		font-weight: 600;
-	}
-
-	.loading-dots { display: flex; justify-content: center; gap: 6px; padding: 30px; }
-	.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: bounce 1.2s ease-in-out infinite; }
-	.dot:nth-child(2) { animation-delay: 0.15s; }
-	.dot:nth-child(3) { animation-delay: 0.3s; }
-	@keyframes bounce {
-		0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
-		40% { transform: scale(1); opacity: 1; }
-	}
 
 	/* Quiz modal */
 	.quiz-modal {
