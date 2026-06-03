@@ -1,18 +1,22 @@
 <script lang="ts">
 	import {
 		ArrowLeft,
-		Bookmark,
 		BookMarked,
 		BookOpen,
 		Clock,
 		Download,
 		Film,
+		Layers,
+		Play,
 		Search,
 		Trash2,
 		Volume2
 	} from 'lucide-svelte';
+	import { goto } from '$app/navigation';
 	import { playPronunciation } from '$lib/utils/tts';
 	import { getGuestVocab, deleteGuestWord } from '$lib/utils/guestVocab';
+	import { isDue } from '$lib/utils/srs';
+	import ReviewSession from '$lib/components/ReviewSession.svelte';
 
 	let { data } = $props();
 
@@ -23,7 +27,7 @@
 	let search = $state('');
 	let activeSource = $state<string | null>(null);
 	let currentPage = $state(1);
-	let activeTab = $state<'words' | 'sentences'>('words');
+	let reviewOpen = $state(false);
 	const PAGE_SIZE = 20;
 
 	$effect(() => {
@@ -36,13 +40,13 @@
 		}
 	});
 
+	// Sentences are no longer saved from the player; show vocabulary only
+	// (legacy sentence entries stay hidden but are kept in the DB).
 	const wordEntries = $derived(entries.filter((e: any) => e.category !== 'sentence'));
-	const sentenceEntries = $derived(entries.filter((e: any) => e.category === 'sentence'));
 
-	// Unique sources with word counts
 	const sources = $derived.by(() => {
 		const map = new Map<string, number>();
-		for (const entry of entries) {
+		for (const entry of wordEntries) {
 			const key = entry.episode_title || 'Unsorted';
 			map.set(key, (map.get(key) || 0) + 1);
 		}
@@ -67,10 +71,11 @@
 		return result;
 	});
 
+	const dueCount = $derived(filteredEntries.filter((e) => isDue(e as any)).length);
+
 	const totalPages = $derived(Math.max(1, Math.ceil(filteredEntries.length / PAGE_SIZE)));
 	const pagedEntries = $derived(filteredEntries.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE));
 
-	// Reset to page 1 when filters change
 	$effect(() => {
 		search; activeSource;
 		currentPage = 1;
@@ -99,17 +104,17 @@
 		try {
 			await playPronunciation(word);
 		} catch {
-			// silently fail
+			/* silently fail */
 		} finally {
 			ttsLoading = null;
 		}
 	}
 
 	function exportJSON() {
-		const data = entries.map(({ word, definition, example, category, episode_title, source_time, created_at }) => ({
+		const out = entries.map(({ word, definition, example, category, episode_title, source_time, created_at }) => ({
 			word, definition, example, category, episode_title, source_time, created_at
 		}));
-		const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+		const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
 		const url = URL.createObjectURL(blob);
 		const a = document.createElement('a');
 		a.href = url;
@@ -134,6 +139,11 @@
 			console.error('Failed to remove word');
 		}
 	}
+
+	function startReview() {
+		if (filteredEntries.length === 0) return;
+		reviewOpen = true;
+	}
 </script>
 
 <svelte:head>
@@ -150,19 +160,11 @@
 			<BookMarked size={16} aria-hidden="true" />
 			<h1>Notebook</h1>
 		</div>
-		<div class="nb-tabs">
-			<button class="nb-tab" class:active={activeTab === 'words'} onclick={() => { activeTab = 'words'; currentPage = 1; }}>
-				Words <span class="nb-tab-count">{wordEntries.length}</span>
-			</button>
-			<button class="nb-tab" class:active={activeTab === 'sentences'} onclick={() => { activeTab = 'sentences'; currentPage = 1; }}>
-				<Bookmark size={13} aria-hidden="true" /> Sentences <span class="nb-tab-count">{sentenceEntries.length}</span>
-			</button>
-		</div>
+		<span class="count">{wordEntries.length} words</span>
 	</header>
 
 	<hr class="dotted-sep" />
 
-	{#if activeTab === 'words'}
 	{#if wordEntries.length === 0}
 		<div class="empty">
 			<BookOpen size={32} aria-hidden="true" />
@@ -178,7 +180,12 @@
 			</label>
 			<button class="export-btn" onclick={exportJSON} title="Export as JSON">
 				<Download size={14} aria-hidden="true" />
-				Export JSON
+				Export
+			</button>
+			<button class="review-btn" onclick={startReview} disabled={filteredEntries.length === 0}>
+				<Layers size={15} aria-hidden="true" />
+				Review
+				{#if dueCount > 0}<span class="review-badge">{dueCount}</span>{/if}
 			</button>
 		</div>
 
@@ -190,7 +197,7 @@
 					value={activeSource || ''}
 					onchange={(e) => { const v = (e.target as HTMLSelectElement).value; activeSource = v || null; }}
 				>
-					<option value="">All clips ({entries.length})</option>
+					<option value="">All clips ({wordEntries.length})</option>
 					{#each sources as src}
 						<option value={src.title}>{src.title} ({src.count})</option>
 					{/each}
@@ -198,130 +205,96 @@
 			</div>
 		{/if}
 
-		<div class="entries">
+		<div class="feed">
 			{#if filteredEntries.length === 0}
 				<div class="empty-list">
 					<p>No words match your search.</p>
 				</div>
 			{:else}
-				{#each pagedEntries as entry}
-					<div class="entry">
-						<div class="entry-main">
-							<div class="entry-word">
-								<strong>{entry.word}</strong>
-								{#if entry.phonetic}
-									<span class="phonetic">{entry.phonetic}</span>
-								{/if}
-								{#if entry.category}
-									<span class="pos">{entry.category}</span>
-								{/if}
+				{#each pagedEntries as entry (entry.id)}
+					<article class="card">
+						<div class="chead">
+							<span class="word">{entry.word}</span>
+							{#if entry.category}<span class="tag">{entry.category}</span>{/if}
+						</div>
+						{#if entry.phonetic}
+							<div class="phonline">
+								<span class="phonetic">{entry.phonetic}</span>
+								<button
+									class="say"
+									class:loading={ttsLoading === entry.id}
+									onclick={() => playTTS(entry.word, entry.id)}
+									aria-label={`Listen to ${entry.word}`}
+									title="Pronounce"
+								>
+									<Volume2 size={14} aria-hidden="true" />
+								</button>
 							</div>
-							<p class="definition">{entry.definition}</p>
-							{#if entry.example}
-								<p class="example">e.g. {entry.example}</p>
-							{/if}
-							{#if entry.episode_title || entry.source_time != null}
-								<a class="source-line" href={sourceHref(entry)} aria-label={`Open source for ${entry.word}`}>
-									<Film size={12} aria-hidden="true" />
-									<span class="source-title">{entry.episode_title || 'Saved source'}</span>
+						{/if}
+						<p class="definition">{entry.definition}</p>
+						{#if entry.example}
+							<p class="example">e.g. {entry.example}</p>
+						{/if}
+						{#if entry.episode_title || entry.source_time != null}
+							<div class="src">
+								<a class="src-link" href={sourceHref(entry)} aria-label={`Open source for ${entry.word}`}>
+									<Film size={13} aria-hidden="true" />
+									<span class="src-title">{entry.episode_title || 'Saved source'}</span>
 									{#if entry.source_time != null}
-										<span class="source-time">
+										<span class="src-time">
 											<Clock size={11} aria-hidden="true" />
 											{formatTimestamp(entry.source_time)}
 										</span>
 									{/if}
 								</a>
-							{/if}
-							{#if entry.source_text}
-								<p class="source-quote">"{entry.source_text}"</p>
-							{/if}
-						</div>
-						<div class="entry-actions">
-							<button
-								class="icon-btn"
-								class:loading={ttsLoading === entry.id}
-								onclick={() => playTTS(entry.word, entry.id)}
-								aria-label={`Listen to ${entry.word}`}
-								title="Listen"
-							>
-								<Volume2 size={14} aria-hidden="true" />
-							</button>
-							<button
-								class="icon-btn delete"
-								onclick={() => removeWord(entry.id)}
-								aria-label={`Remove ${entry.word}`}
-								title="Delete"
-							>
-								<Trash2 size={14} aria-hidden="true" />
-							</button>
-						</div>
-					</div>
+								{#if entry.episode_id}
+									<a class="src-play" href={sourceHref(entry)} title="Play clip" aria-label="Play clip">
+										<Play size={11} aria-hidden="true" />
+									</a>
+								{/if}
+							</div>
+						{/if}
+						{#if entry.source_text}
+							<p class="quote">"{entry.source_text}"</p>
+						{/if}
+						<button
+							class="card-delete"
+							onclick={() => removeWord(entry.id)}
+							aria-label={`Remove ${entry.word}`}
+							title="Delete"
+						>
+							<Trash2 size={14} aria-hidden="true" />
+						</button>
+					</article>
 				{/each}
 			{/if}
 		</div>
 
 		{#if totalPages > 1}
 			<div class="pagination">
-				<button
-					class="page-btn"
-					disabled={currentPage <= 1}
-					onclick={() => { currentPage--; window.scrollTo(0, 0); }}
-				>Previous</button>
+				<button class="page-btn" disabled={currentPage <= 1} onclick={() => { currentPage--; window.scrollTo(0, 0); }}>Previous</button>
 				<div class="page-numbers">
 					{#each Array.from({ length: totalPages }, (_, i) => i + 1) as p}
 						{#if p === 1 || p === totalPages || (p >= currentPage - 1 && p <= currentPage + 1)}
-							<button
-								class="page-num"
-								class:active={p === currentPage}
-								onclick={() => { currentPage = p; window.scrollTo(0, 0); }}
-							>{p}</button>
+							<button class="page-num" class:active={p === currentPage} onclick={() => { currentPage = p; window.scrollTo(0, 0); }}>{p}</button>
 						{:else if p === currentPage - 2 || p === currentPage + 2}
 							<span class="page-dots">…</span>
 						{/if}
 					{/each}
 				</div>
-				<button
-					class="page-btn"
-					disabled={currentPage >= totalPages}
-					onclick={() => { currentPage++; window.scrollTo(0, 0); }}
-				>Next</button>
+				<button class="page-btn" disabled={currentPage >= totalPages} onclick={() => { currentPage++; window.scrollTo(0, 0); }}>Next</button>
 			</div>
 		{/if}
 	{/if}
-	{:else}
-		{#if sentenceEntries.length === 0}
-			<div class="empty">
-				<Bookmark size={32} aria-hidden="true" />
-				<p>No sentences saved yet.</p>
-				<p class="empty-sub">Press Save on any subtitle while studying to bookmark it here.</p>
-			</div>
-		{:else}
-			<div class="entries sentence-entries">
-				{#each sentenceEntries as entry (entry.id)}
-					<div class="sentence-entry">
-						<div class="sentence-text">{entry.source_text || entry.example || entry.word}</div>
-						<div class="sentence-meta">
-							{#if entry.episode_title}
-								<a class="source-line" href={sourceHref(entry)}>
-									<Film size={11} aria-hidden="true" />
-									{entry.episode_title}
-									{#if entry.source_time != null}
-										<Clock size={11} aria-hidden="true" />
-										{formatTimestamp(entry.source_time)}
-									{/if}
-								</a>
-							{/if}
-							<button class="remove-btn" onclick={() => removeWord(entry.id)} aria-label="Remove sentence">
-								<Trash2 size={13} aria-hidden="true" />
-							</button>
-						</div>
-					</div>
-				{/each}
-			</div>
-		{/if}
-	{/if}
-
 </div>
+
+<ReviewSession
+	bind:open={reviewOpen}
+	entries={filteredEntries as any}
+	variant="modal"
+	isGuest={!!data.user?.isGuest}
+	onSeek={(entry) => goto(sourceHref(entry as NotebookEntry))}
+/>
 
 <style>
 	.notebook-page {
@@ -364,73 +337,11 @@
 		letter-spacing: -0.01em;
 	}
 
-	.word-count {
-		font-size: 11px;
-		color: var(--gray9);
-		background: var(--gray3);
-		border: 1px solid var(--gray4);
-		border-radius: var(--radius-pill);
-		padding: 3px 10px;
-		font-variant-numeric: tabular-nums;
-	}
-
-	.nb-tabs {
-		display: flex;
-		gap: 4px;
-		background: var(--gray3);
-		padding: 3px;
-		border-radius: var(--radius-sm);
-	}
-	.nb-tab {
-		display: flex;
-		align-items: center;
-		gap: 5px;
-		padding: 5px 14px;
-		border-radius: calc(var(--radius-sm) - 2px);
-		border: none;
-		background: transparent;
-		color: var(--gray9);
+	.count {
 		font-size: 13px;
-		font-weight: 500;
-		cursor: pointer;
-		transition: background 0.15s, color 0.15s;
-	}
-	.nb-tab.active {
-		background: var(--bg-card);
-		color: var(--gray12);
-		box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-	}
-	.nb-tab-count {
-		font-size: 11px;
+		font-weight: 550;
 		color: var(--gray9);
-		background: var(--gray4);
-		border-radius: 99px;
-		padding: 1px 7px;
 		font-variant-numeric: tabular-nums;
-	}
-	.nb-tab.active .nb-tab-count { background: var(--gray3); }
-
-	.sentence-entries { display: flex; flex-direction: column; gap: 10px; }
-	.sentence-entry {
-		border: 1px solid var(--gray3);
-		border-radius: var(--radius-md);
-		padding: 16px 20px;
-		background: var(--bg-card);
-		display: flex;
-		flex-direction: column;
-		gap: 10px;
-	}
-	.sentence-text {
-		font-size: 17px;
-		line-height: 1.6;
-		color: var(--text);
-		font-family: var(--font-body);
-	}
-	.sentence-meta {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 8px;
 	}
 
 	.empty {
@@ -468,27 +379,11 @@
 		align-items: center;
 		gap: 10px;
 	}
-	.export-btn {
-		display: flex;
-		align-items: center;
-		gap: 6px;
-		padding: 0 14px;
-		height: 38px;
-		border: 1px solid var(--gray4);
-		border-radius: var(--radius-sm);
-		background: transparent;
-		color: var(--gray9);
-		font-size: 13px;
-		cursor: pointer;
-		white-space: nowrap;
-		transition: color var(--duration-fast) var(--ease), border-color var(--duration-fast) var(--ease);
-	}
-	.export-btn:hover { color: var(--gray12); border-color: var(--gray6); }
-
 	.search-box {
 		display: flex;
 		align-items: center;
 		gap: 8px;
+		flex: 1;
 		border: 1px solid var(--gray4);
 		border-radius: var(--radius-sm);
 		background: var(--gray2);
@@ -510,12 +405,55 @@
 		border-color: var(--accent);
 		box-shadow: 0 0 0 3px var(--accent-soft);
 	}
+	.export-btn {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		padding: 0 14px;
+		height: 38px;
+		border: 1px solid var(--gray4);
+		border-radius: var(--radius-sm);
+		background: transparent;
+		color: var(--gray9);
+		font-size: 13px;
+		cursor: pointer;
+		white-space: nowrap;
+		transition: color var(--duration-fast) var(--ease), border-color var(--duration-fast) var(--ease);
+	}
+	.export-btn:hover { color: var(--gray12); border-color: var(--gray6); }
+	.review-btn {
+		display: inline-flex;
+		align-items: center;
+		gap: 7px;
+		height: 38px;
+		padding: 0 16px;
+		border: none;
+		border-radius: var(--radius-sm);
+		background: var(--accent);
+		color: #fff;
+		font-size: 13px;
+		font-weight: 600;
+		cursor: pointer;
+		white-space: nowrap;
+		transition: background var(--duration-fast) var(--ease), transform var(--duration-fast);
+	}
+	.review-btn:hover { background: var(--accent-hover); }
+	.review-btn:active { transform: scale(0.97); }
+	.review-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+	.review-badge {
+		background: rgba(255, 255, 255, 0.22);
+		border-radius: var(--radius-pill);
+		font-size: 11.5px;
+		font-weight: 650;
+		padding: 1px 8px;
+		font-variant-numeric: tabular-nums;
+	}
 
 	.source-filter-wrap {
 		display: flex;
 		align-items: center;
 		gap: 8px;
-		margin-bottom: 16px;
+		margin-bottom: 18px;
 		color: var(--gray9);
 	}
 	.source-select {
@@ -530,99 +468,124 @@
 		cursor: pointer;
 		transition: border-color var(--duration-fast) var(--ease);
 	}
-	.source-select:focus {
-		outline: none;
-		border-color: var(--accent);
-	}
+	.source-select:focus { outline: none; border-color: var(--accent); }
 
-	.entries {
-		display: grid;
-		gap: 4px;
-	}
+	/* ── card feed ── */
+	.feed { display: flex; flex-direction: column; gap: 14px; }
 
-	.entry {
+	.card {
+		position: relative;
+		background: var(--bg-card);
+		border: 1px solid var(--gray4);
+		border-radius: var(--radius-lg);
+		padding: 18px 18px 15px;
+		transition: border-color var(--duration-fast) var(--ease), box-shadow var(--duration-fast) var(--ease), transform var(--duration-fast) var(--ease);
+	}
+	.card:hover {
+		border-color: var(--gray6);
+		box-shadow: var(--shadow-md);
+		transform: translateY(-2px);
+	}
+	.chead {
 		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 16px;
-		padding: 14px 16px;
-		background: transparent;
-		border: 1px solid transparent;
-		border-radius: var(--radius-sm);
-		transition: background var(--duration-fast) var(--ease);
-	}
-	.entry:hover { background: var(--gray2); }
-
-	.entry-main {
-		flex: 1;
-		min-width: 0;
-	}
-
-	.entry-word {
-		display: flex;
-		align-items: center;
+		align-items: baseline;
 		gap: 8px;
-		margin-bottom: 4px;
+		justify-content: space-between;
+		padding-right: 28px;
 	}
-	.entry-word strong {
-		font-size: 15px;
+	.word {
+		font-size: 17.5px;
+		font-weight: 670;
+		letter-spacing: -0.01em;
 		color: var(--gray12);
+		line-height: 1.25;
 	}
-	.phonetic {
-		font-size: 13px;
-		color: var(--gray9);
-		font-style: italic;
-	}
-	.pos {
+	.tag {
+		flex: 0 0 auto;
 		font-size: 10px;
-		font-weight: 600;
-		text-transform: uppercase;
+		font-weight: 650;
 		letter-spacing: 0.06em;
 		color: var(--gray9);
 		background: var(--gray3);
-		padding: 2px 7px;
-		border-radius: var(--radius-xs);
+		padding: 3px 8px;
+		border-radius: var(--radius-sm);
+		text-transform: uppercase;
 	}
+	.phonline { display: flex; align-items: center; gap: 8px; margin: 5px 0 0; }
+	.phonetic { font-size: 13px; color: var(--gray9); font-style: italic; }
+	.say {
+		width: 24px; height: 24px;
+		border: none; background: transparent;
+		color: var(--gray9); border-radius: 7px; cursor: pointer;
+		display: grid; place-items: center;
+		transition: background var(--duration-fast) var(--ease), color var(--duration-fast) var(--ease);
+	}
+	.say:hover { background: var(--gray3); color: var(--gray12); }
+	.say.loading { opacity: 0.5; cursor: default; }
 
-	.definition {
-		font-size: 14px;
-		color: var(--gray11);
-		line-height: 1.5;
-	}
-	.example {
-		font-size: 13px;
+	.definition { font-size: 14.5px; line-height: 1.5; color: var(--gray12); margin: 11px 0 8px; }
+	.example { font-size: 13.5px; line-height: 1.5; color: var(--gray9); font-style: italic; margin: 0; }
+
+	.src {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		font-size: 11.5px;
 		color: var(--gray9);
-		font-style: italic;
-		margin-top: 4px;
-		line-height: 1.5;
+		margin-top: 13px;
+		padding-top: 12px;
+		border-top: 1px solid var(--gray3);
 	}
-
-	.source-line {
+	.src-link {
 		display: inline-flex;
 		align-items: center;
-		gap: 6px;
-		max-width: 100%;
-		margin-top: 8px;
-		color: var(--gray8);
-		font-size: 12px;
-		line-height: 1.3;
+		gap: 7px;
+		flex: 1;
+		min-width: 0;
+		color: var(--gray9);
 		text-decoration: none;
 		transition: color var(--duration-fast) var(--ease);
 	}
-	.source-line:hover { color: var(--accent); text-decoration: none; }
-	.source-title {
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
+	.src-link:hover { color: var(--accent); text-decoration: none; }
+	.src-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	.src-time { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; font-variant-numeric: tabular-nums; }
+	.src-play {
+		flex: 0 0 auto;
+		width: 22px; height: 22px;
+		background: var(--gray3); color: var(--gray11);
+		border-radius: 6px; display: grid; place-items: center;
+		opacity: 0;
+		transition: opacity var(--duration-fast) var(--ease), background var(--duration-fast) var(--ease), color var(--duration-fast) var(--ease);
 	}
-	.source-time {
-		display: inline-flex;
-		align-items: center;
-		gap: 3px;
-		flex-shrink: 0;
+	.card:hover .src-play { opacity: 1; }
+	.src-play:hover { background: var(--accent-soft); color: var(--accent); text-decoration: none; }
+
+	.quote {
+		margin: 11px 0 0;
+		font-size: 12.5px;
+		line-height: 1.55;
 		color: var(--gray9);
+		font-style: italic;
+		background: var(--gray2);
+		border-radius: var(--radius-md);
+		padding: 10px 12px;
 	}
-	/* Pagination */
+
+	.card-delete {
+		position: absolute;
+		top: 12px;
+		right: 12px;
+		width: 28px; height: 28px;
+		border: none; background: transparent;
+		color: var(--gray8); border-radius: 7px; cursor: pointer;
+		display: grid; place-items: center;
+		opacity: 0;
+		transition: opacity var(--duration-fast) var(--ease), background var(--duration-fast) var(--ease), color var(--duration-fast) var(--ease);
+	}
+	.card:hover .card-delete, .card:focus-within .card-delete { opacity: 1; }
+	.card-delete:hover { background: var(--gray3); color: var(--red); }
+
+	/* ── pagination ── */
 	.pagination {
 		display: flex;
 		align-items: center;
@@ -632,11 +595,7 @@
 		padding-top: 20px;
 		border-top: 1px solid var(--gray3);
 	}
-	.page-numbers {
-		display: flex;
-		align-items: center;
-		gap: 2px;
-	}
+	.page-numbers { display: flex; align-items: center; gap: 2px; }
 	.page-btn {
 		padding: 7px 16px;
 		border-radius: var(--radius-sm);
@@ -651,69 +610,17 @@
 	.page-btn:hover:not(:disabled) { background: var(--gray3); color: var(--gray12); }
 	.page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 	.page-num {
-		width: 32px;
-		height: 32px;
+		width: 32px; height: 32px;
 		border-radius: var(--radius-sm);
-		border: none;
-		background: transparent;
-		font-size: 13px;
-		font-weight: 500;
-		color: var(--gray9);
-		cursor: pointer;
-		display: flex;
-		align-items: center;
-		justify-content: center;
+		border: none; background: transparent;
+		font-size: 13px; font-weight: 500;
+		color: var(--gray9); cursor: pointer;
+		display: flex; align-items: center; justify-content: center;
 		transition: background var(--duration-fast) var(--ease), color var(--duration-fast) var(--ease);
 	}
 	.page-num:hover { background: var(--gray3); color: var(--gray12); }
-	.page-num.active {
-		background: var(--gray12);
-		color: var(--gray1);
-		font-weight: 600;
-	}
-	.page-dots {
-		width: 24px;
-		text-align: center;
-		color: var(--gray8);
-		font-size: 13px;
-	}
-
-	.source-quote {
-		font-size: 13px;
-		color: var(--gray9);
-		font-style: italic;
-		margin-top: 6px;
-		line-height: 1.5;
-		display: -webkit-box;
-		-webkit-line-clamp: 2;
-		line-clamp: 2;
-		-webkit-box-orient: vertical;
-		overflow: hidden;
-	}
-
-	.entry-actions {
-		display: flex;
-		align-items: center;
-		gap: 2px;
-		flex-shrink: 0;
-	}
-
-	.icon-btn {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 30px; height: 30px;
-		border-radius: var(--radius-sm);
-		color: var(--gray8);
-		cursor: pointer;
-		transition: background var(--duration-fast) var(--ease), color var(--duration-fast) var(--ease), opacity var(--duration-fast) var(--ease);
-		opacity: 0;
-	}
-	.entry:hover .icon-btn,
-	.entry:focus-within .icon-btn { opacity: 1; }
-	.icon-btn:hover { background: var(--gray3); color: var(--accent); }
-	.icon-btn.loading { opacity: 0.5; cursor: default; }
-	.icon-btn.delete:hover { background: var(--gray3); color: var(--red); }
+	.page-num.active { background: var(--gray12); color: var(--gray1); font-weight: 600; }
+	.page-dots { width: 24px; text-align: center; color: var(--gray8); font-size: 13px; }
 
 	.empty-list {
 		padding: 36px 20px;
@@ -723,30 +630,14 @@
 		border-radius: var(--radius-sm);
 	}
 
-	.icon-btn:focus-visible {
-		outline: 2px solid var(--accent);
-		outline-offset: 2px;
-	}
-
 	@media (max-width: 560px) {
 		.notebook-page { padding: 0 12px 60px; }
 		header { flex-wrap: wrap; gap: 8px; padding: 16px 0 12px; }
 		h1 { font-size: 18px; }
 		.toolbar { flex-wrap: wrap; }
 		.search-box { flex: 1 1 100%; }
-		.export-btn { flex: 1 1 auto; justify-content: center; }
-		.entry { flex-wrap: wrap; gap: 10px; padding: 12px; }
-		.entry-word strong { font-size: 15px; }
-		.definition { font-size: 13px; }
-		.entry-actions {
-			width: 100%;
-			justify-content: flex-end;
-			gap: 8px;
-			border-top: 1px solid var(--gray3);
-			padding-top: 8px;
-			margin-top: 2px;
-		}
-		.icon-btn { opacity: 1; width: 40px; height: 40px; }
-		.source-line { font-size: 11px; }
+		.export-btn, .review-btn { flex: 1 1 auto; justify-content: center; }
+		.src-play { opacity: 1; }
+		.card-delete { opacity: 1; }
 	}
 </style>

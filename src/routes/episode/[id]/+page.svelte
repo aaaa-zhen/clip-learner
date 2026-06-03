@@ -19,6 +19,7 @@
 		Clock,
 		Download,
 		HelpCircle,
+		Layers,
 		ListTree,
 		MessageCircle,
 		Repeat2,
@@ -26,6 +27,7 @@
 		X,
 		ArrowLeft
 	} from 'lucide-svelte';
+	import ReviewSession from '$lib/components/ReviewSession.svelte';
 
 	let { data } = $props();
 
@@ -77,6 +79,7 @@
 
 	// Overlay state
 	let notebookOpen = $state(false);
+	let reviewOpen = $state(false);
 	let quizOpen = $state(false);
 	let lineHelpOpen = $state(false);
 	let lineHelpText = $state('');
@@ -1140,6 +1143,11 @@
 		<div class="drawer-head-row">
 			<h2 id="notebook-dialog-title">Notebook</h2>
 			<span class="drawer-count">{wordsSaved} words</span>
+			{#if localNotebook.length}
+				<button type="button" class="drawer-review" onclick={() => { notebookOpen = false; reviewOpen = true; }}>
+					<Layers size={14} aria-hidden="true" /> Review
+				</button>
+			{/if}
 			<button type="button" class="drawer-close" onclick={() => notebookOpen = false} aria-label="Close notebook"><X size={18} /></button>
 		</div>
 	</div>
@@ -1178,6 +1186,14 @@
 		<a href="/notebook" class="drawer-foot-link">Open full notebook →</a>
 	</div>
 </div>
+
+<!-- Flashcard review (this episode's saved words) -->
+<ReviewSession
+	bind:open={reviewOpen}
+	entries={data.notebookEntries as any}
+	variant="drawer"
+	onSeek={(entry) => { if (entry.source_time != null) videoPlayer?.seekTo(Number(entry.source_time)); }}
+/>
 
 <!-- Line help popup -->
 {#if lineHelpOpen}
@@ -1834,6 +1850,14 @@
 	.drawer-head-row { display: flex; align-items: center; gap: 10px; }
 	.drawer-head h2 { font-size: 18px; font-weight: 600; flex: 1; letter-spacing: -0.01em; color: var(--gray12); }
 	.drawer-count { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--gray9); font-weight: 500; }
+	.drawer-review {
+		display: inline-flex; align-items: center; gap: 6px;
+		padding: 6px 12px; border-radius: var(--radius-sm);
+		background: var(--accent); color: #fff; font-size: 12.5px; font-weight: 600;
+		cursor: pointer; transition: background var(--duration-fast) var(--ease), transform var(--duration-fast);
+	}
+	.drawer-review:hover { background: var(--accent-hover); }
+	.drawer-review:active { transform: scale(0.97); }
 	.drawer-close {
 		width: 32px; height: 32px;
 		border-radius: var(--radius-sm);

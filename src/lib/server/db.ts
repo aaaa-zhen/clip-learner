@@ -147,6 +147,20 @@ function initSchema() {
 		db.exec('ALTER TABLE vocab_notebook ADD COLUMN article_id TEXT');
 	} catch { /* column already exists */ }
 
+	// Spaced-repetition review scheduling (SM-2 lite). review_due is an ISO
+	// datetime string; a NULL due means "new, never reviewed" (always due).
+	try {
+		db.exec('ALTER TABLE vocab_notebook ADD COLUMN review_due TEXT');
+	} catch { /* column already exists */ }
+
+	try {
+		db.exec('ALTER TABLE vocab_notebook ADD COLUMN review_interval REAL DEFAULT 0');
+	} catch { /* column already exists */ }
+
+	try {
+		db.exec('ALTER TABLE vocab_notebook ADD COLUMN review_reps INTEGER DEFAULT 0');
+	} catch { /* column already exists */ }
+
 	db.exec(`
 		UPDATE episodes
 		SET video_id = id

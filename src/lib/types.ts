@@ -80,4 +80,7 @@ export interface VocabEntry {
 	confidence: number;
 	created_at: string;
 	reviewed_at: string | null;
+	review_due?: string | null;
+	review_interval?: number;
+	review_reps?: number;
 }

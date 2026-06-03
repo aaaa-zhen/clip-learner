@@ -3,6 +3,8 @@
  * Mirrors the shape of vocab_notebook DB rows so the notebook UI works unchanged.
  */
 
+import { nextSchedule, type Grade } from './srs';
+
 const STORAGE_KEY = 'clip-guest-vocab';
 
 export interface GuestVocabEntry {
@@ -20,6 +22,9 @@ export interface GuestVocabEntry {
 	confidence: number;
 	created_at: string;
 	reviewed_at: string | null;
+	review_due?: string | null;
+	review_interval?: number;
+	review_reps?: number;
 }
 
 function load(): GuestVocabEntry[] {
@@ -72,6 +77,22 @@ export function updateGuestConfidence(id: number, confidence: number) {
 		entry.reviewed_at = new Date().toISOString();
 		persist(entries);
 	}
+}
+
+/** Record a spaced-repetition review result for a guest's saved word. */
+export function reviewGuestWord(id: number, grade: Grade) {
+	const entries = load();
+	const entry = entries.find((e) => e.id === id);
+	if (!entry) return;
+	const next = nextSchedule(grade, {
+		review_interval: entry.review_interval ?? 0,
+		review_reps: entry.review_reps ?? 0
+	});
+	entry.review_interval = next.interval;
+	entry.review_reps = next.reps;
+	entry.review_due = next.due;
+	entry.reviewed_at = new Date().toISOString();
+	persist(entries);
 }
 
 /** Export all guest vocab for migration to a real account. */
