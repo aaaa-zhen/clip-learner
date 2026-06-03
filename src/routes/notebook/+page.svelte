@@ -526,28 +526,28 @@
 		z-index: 31;
 		min-width: 280px;
 		max-width: min(480px, 92vw);
-		max-height: 340px;
+		max-height: 380px;
 		overflow-y: auto;
 		background: var(--bg-card);
 		border: 1px solid var(--gray4);
 		border-radius: var(--radius-md);
 		box-shadow: var(--shadow-lg);
-		padding: 5px;
+		padding: 7px;
 	}
 	.filter-opt {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		gap: 12px;
+		gap: 14px;
 		width: 100%;
 		text-align: left;
-		padding: 8px 10px;
+		padding: 12px 14px;
 		border: none;
 		background: transparent;
 		border-radius: var(--radius-sm);
 		color: var(--gray12);
 		font-family: var(--font-ui);
-		font-size: 13px;
+		font-size: 13.5px;
 		cursor: pointer;
 		transition: background var(--duration-fast) var(--ease), color var(--duration-fast) var(--ease);
 	}
