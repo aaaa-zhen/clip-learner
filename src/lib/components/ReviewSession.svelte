@@ -124,6 +124,7 @@
 
 	{#if !finished && current}
 		<div class="rv-stage">
+			{#key idx}
 			<div class="rv-card">
 				<div class="rv-top">
 					{#if current.category}<span class="rv-tag">{current.category}</span>{/if}
@@ -141,11 +142,12 @@
 							</button>
 						{/if}
 						<button class="rv-pill" onclick={say}>
-							<Volume2 size={14} aria-hidden="true" /> Say it
+							<Volume2 size={14} aria-hidden="true" /> Hear it
 						</button>
 					</div>
 				</div>
 			</div>
+			{/key}
 		</div>
 
 		<div class="rv-grades">
@@ -231,12 +233,18 @@
 		opacity: 1;
 		pointer-events: auto;
 	}
-	.rv-panel.on .rv-stage {
-		animation: rvIn 480ms var(--ease-soft) 60ms both;
+	/* Each card animates in on open and on every advance (keyed by idx),
+	   with a small overshoot so it feels like the next card springs in. */
+	.rv-card {
+		animation: rvCardIn 440ms cubic-bezier(0.22, 1.16, 0.36, 1) both;
 	}
-	@keyframes rvIn {
-		from { opacity: 0; transform: translateY(14px); }
-		to { opacity: 1; transform: none; }
+	@keyframes rvCardIn {
+		from { opacity: 0; transform: translateY(22px) scale(0.97); }
+		60%  { opacity: 1; }
+		to   { opacity: 1; transform: none; }
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.rv-card { animation: none; }
 	}
 
 	.rv-head {
@@ -357,24 +365,25 @@
 	}
 	.rv-meta {
 		display: flex;
-		gap: 10px;
-		margin-top: 18px;
+		gap: 6px;
+		margin-top: 16px;
+		margin-left: -8px;
 	}
 	.rv-pill {
 		display: inline-flex;
 		align-items: center;
-		gap: 6px;
+		gap: 5px;
 		font-size: 12.5px;
-		font-weight: 550;
-		color: var(--gray11);
-		background: var(--gray3);
+		font-weight: 500;
+		color: var(--gray10);
+		background: transparent;
 		border: none;
 		border-radius: var(--radius-pill);
-		padding: 7px 13px;
+		padding: 5px 8px;
 		cursor: pointer;
 		transition: background var(--duration-fast) var(--ease), color var(--duration-fast) var(--ease), transform var(--duration-fast);
 	}
-	.rv-pill:hover { background: var(--gray4); color: var(--gray12); }
+	.rv-pill:hover { background: var(--gray3); color: var(--gray12); }
 	.rv-pill:active { transform: scale(0.95); }
 
 	.rv-grades {
