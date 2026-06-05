@@ -47,13 +47,14 @@
 		}
 	});
 
-	// Sentences are no longer saved from the player; show vocabulary only
-	// (legacy sentence entries stay hidden but are kept in the DB).
-	const wordEntries = $derived(entries.filter((e: any) => e.category !== 'sentence'));
+	// The "save whole sentence" button was removed from the player, but some
+	// users had already saved sentences (category 'sentence') before that — keep
+	// showing them so nobody's saved items disappear from their notebook.
+	const visibleEntries = $derived(entries);
 
 	const sources = $derived.by(() => {
 		const map = new Map<string, number>();
-		for (const entry of wordEntries) {
+		for (const entry of visibleEntries) {
 			const key = entry.episode_title || 'Unsorted';
 			map.set(key, (map.get(key) || 0) + 1);
 		}
@@ -63,8 +64,8 @@
 	// Words for the selected source only (ignores the search box) — also the
 	// scope used by Export, so you can export a single episode's vocabulary.
 	const sourceFiltered = $derived.by(() => {
-		if (!activeSource) return wordEntries;
-		return wordEntries.filter((e) =>
+		if (!activeSource) return visibleEntries;
+		return visibleEntries.filter((e) =>
 			activeSource === 'Unsorted' ? !e.episode_title : e.episode_title === activeSource
 		);
 	});
@@ -82,10 +83,14 @@
 		return result;
 	});
 
-	const dueCount = $derived(filteredEntries.filter((e) => isDue(e as any)).length);
+	// Flashcard review is word recall (front: word, back: definition). Legacy
+	// sentence entries have no definition, so they're shown in the list but kept
+	// out of the Review deck.
+	const reviewableEntries = $derived(filteredEntries.filter((e: any) => e.category !== 'sentence'));
+	const dueCount = $derived(reviewableEntries.filter((e) => isDue(e as any)).length);
 
 	const activeSourceCount = $derived(
-		activeSource ? sources.find((s) => s.title === activeSource)?.count ?? 0 : wordEntries.length
+		activeSource ? sources.find((s) => s.title === activeSource)?.count ?? 0 : visibleEntries.length
 	);
 
 	const totalPages = $derived(Math.max(1, Math.ceil(filteredEntries.length / PAGE_SIZE)));
@@ -163,7 +168,7 @@
 	}
 
 	function startReview() {
-		if (filteredEntries.length === 0) return;
+		if (reviewableEntries.length === 0) return;
 		reviewOpen = true;
 	}
 </script>
@@ -182,12 +187,12 @@
 			<BookMarked size={16} aria-hidden="true" />
 			<h1>Notebook</h1>
 		</div>
-		<span class="count">{wordEntries.length} words</span>
+		<span class="count">{visibleEntries.length} saved</span>
 	</header>
 
 	<hr class="dotted-sep" />
 
-	{#if wordEntries.length === 0}
+	{#if visibleEntries.length === 0}
 		<div class="empty">
 			<BookOpen size={32} aria-hidden="true" />
 			<p>Your notebook is empty.</p>
@@ -208,7 +213,7 @@
 				<Download size={14} aria-hidden="true" />
 				Export
 			</button>
-			<button class="review-btn" onclick={startReview} disabled={filteredEntries.length === 0}>
+			<button class="review-btn" onclick={startReview} disabled={reviewableEntries.length === 0}>
 				<Layers size={15} aria-hidden="true" />
 				Review
 				{#if dueCount > 0}<span class="review-badge">{dueCount}</span>{/if}
@@ -235,7 +240,7 @@
 					<div class="filter-menu" role="listbox">
 						<button type="button" class="filter-opt" class:on={!activeSource} onclick={() => selectSource(null)}>
 							<span class="opt-t">All clips</span>
-							<span class="opt-c">{wordEntries.length}</span>
+							<span class="opt-c">{visibleEntries.length}</span>
 						</button>
 						{#each sources as src}
 							<button type="button" class="filter-opt" class:on={activeSource === src.title} onclick={() => selectSource(src.title)}>
@@ -274,7 +279,9 @@
 								</button>
 							</div>
 						{/if}
-						<p class="definition">{entry.definition}</p>
+						{#if entry.definition}
+							<p class="definition">{entry.definition}</p>
+						{/if}
 						{#if entry.example}
 							<p class="example">e.g. {entry.example}</p>
 						{/if}
@@ -297,7 +304,7 @@
 								{/if}
 							</div>
 						{/if}
-						{#if entry.source_text}
+						{#if entry.source_text && entry.source_text !== entry.example}
 							<p class="quote">"{entry.source_text}"</p>
 						{/if}
 						<button
@@ -333,7 +340,7 @@
 
 <ReviewSession
 	bind:open={reviewOpen}
-	entries={filteredEntries as any}
+	entries={reviewableEntries as any}
 	variant="modal"
 	isGuest={!!data.user?.isGuest}
 	onSeek={(entry) => goto(sourceHref(entry as NotebookEntry))}
